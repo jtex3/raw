@@ -40,36 +40,13 @@ export default function LoginPage() {
     }
   }
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-
-      if (error) {
-        setError(error.message)
-      } else {
-        setError('Check your email for the confirmation link')
-      }
-    } catch (error) {
-      setError('An unexpected error occurred')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="flex-1 flex items-center justify-center p-8">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Welcome</CardTitle>
           <CardDescription className="text-center">
-            Sign in to your account or create a new one
+            Sign in to your account
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -102,19 +79,10 @@ export default function LoginPage() {
             <div className="space-y-2">
               <Button 
                 type="submit" 
-                className="w-full" 
+                className="w-full bg-teal-700 hover:bg-teal-800" 
                 disabled={loading}
               >
                 {loading ? 'Signing in...' : 'Sign In'}
-              </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="w-full" 
-                onClick={handleSignUp}
-                disabled={loading}
-              >
-                {loading ? 'Creating account...' : 'Sign Up'}
               </Button>
             </div>
           </form>
