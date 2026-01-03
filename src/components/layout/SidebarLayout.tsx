@@ -12,7 +12,8 @@ import {
   X,
   FileText,
   BarChart3,
-  Shield
+  Shield,
+  Database
 } from 'lucide-react'
 
 interface SidebarLayoutProps {
@@ -33,6 +34,7 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
     { icon: User, label: 'Profile', href: '/profile' },
     { icon: FileText, label: 'Documents', href: '/documents' },
     { icon: BarChart3, label: 'Analytics', href: '/analytics' },
+    { icon: Database, label: 'Objects', href: '/objects' },
     { icon: Shield, label: 'Security', href: '/security' },
     { icon: Settings, label: 'Settings', href: '/settings' },
   ]
