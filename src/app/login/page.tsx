@@ -34,7 +34,9 @@ export default function LoginPage() {
         router.refresh()
       }
     } catch (error) {
-      setError('An unexpected error occurred')
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
+      console.error('Login error:', errorMessage)
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

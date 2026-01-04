@@ -6,6 +6,7 @@
 - **Type safety**: TypeScript everywhere, no `any` types
 - **Consistency**: Follow established patterns throughout
 - **Performance**: Optimize for user experience and developer experience
+- **Debugging**: Never use Fallbacks or Mockdata on code generation
 
 ## Project Structure
 ```

@@ -30,8 +30,13 @@ export default function ObjectsPage() {
       }
       
       const data = await response.json()
+      
+      if (!data.tables) {
+        throw new Error('No tables data returned from API')
+      }
+      
       // Sort alphabetically by table name
-      const sortedObjects = (data.tables || []).sort((a: SchemaObject, b: SchemaObject) => 
+      const sortedObjects = data.tables.sort((a: SchemaObject, b: SchemaObject) => 
         a.table_name.localeCompare(b.table_name)
       )
       setObjects(sortedObjects)
@@ -113,7 +118,7 @@ export default function ObjectsPage() {
         </div>
       </div>
 
-      {objects.length === 0 && (
+      {objects.length === 0 && !loading && !error && (
         <div className="text-center py-12">
           <Database className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No objects found</h3>

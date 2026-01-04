@@ -26,10 +26,13 @@ export default function HomePage() {
     getUser()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      if (!session?.user) {
+      if (!session) {
+        setUser(null)
         router.push('/login')
+        return
       }
+      
+      setUser(session.user)
     })
 
     return () => subscription.unsubscribe()
@@ -44,7 +47,7 @@ export default function HomePage() {
   }
 
   if (!user) {
-    return null
+    throw new Error('User not authenticated')
   }
 
   return (
@@ -64,7 +67,7 @@ export default function HomePage() {
               <div className="space-y-2">
                 <p><strong>Email:</strong> {user.email}</p>
                 <p><strong>ID:</strong> {user.id}</p>
-                <p><strong>Last Sign In:</strong> {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : 'Unknown'}</p>
+                <p><strong>Last Sign In:</strong> {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : new Date().toLocaleString()}</p>
               </div>
             </CardContent>
           </Card>

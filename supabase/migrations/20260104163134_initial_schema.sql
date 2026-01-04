@@ -588,6 +588,7 @@ $$ LANGUAGE plpgsql
 CREATE OR REPLACE FUNCTION get_schema_public_tables()
 RETURNS TABLE (table_name text, table_type text) 
 LANGUAGE sql SECURITY DEFINER
+SET search_path = pg_catalog, information_schema, public, pg_temp
 AS $$
   SELECT 
     t.table_name::text,
@@ -607,6 +608,7 @@ RETURNS TABLE (
   column_default text
 ) 
 LANGUAGE sql SECURITY DEFINER
+SET search_path = pg_catalog, information_schema, public, pg_temp
 AS $$
   SELECT 
     c.column_name::text,
@@ -725,6 +727,8 @@ CREATE TRIGGER update_list_views_updated_at
 -- =====================================================
 -- GRANT STATEMENTS - TABLE PERMISSIONS
 -- =====================================================
+GRANT USAGE ON SCHEMA public TO authenticated;
+
 
 -- Grant CRUD permissions on all tables to authenticated users
 GRANT SELECT, INSERT, UPDATE, DELETE ON organizations TO authenticated;

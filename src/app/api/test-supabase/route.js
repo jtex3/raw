@@ -12,18 +12,24 @@ export async function GET() {
     // Test the connection
     const { data, error } = await supabase.from('_test_').select('*').limit(1)
     
+    if (error) {
+      throw new Error(`Supabase connection failed: ${error.message}`)
+    }
+    
     return NextResponse.json({
       success: true,
       connected: true,
       url: process.env.NEXT_PUBLIC_SUPABASE_URL,
       message: 'Supabase connection successful!',
-      error: error?.message || null
+      data: data
     })
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+    console.error('Supabase test error:', errorMessage)
     return NextResponse.json({
       success: false,
       connected: false,
-      error: err.message
+      error: errorMessage
     }, { status: 500 })
   }
 }
