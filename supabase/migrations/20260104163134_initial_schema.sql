@@ -285,6 +285,27 @@ $$ LANGUAGE plpgsql
    STABLE
    SET search_path = public, pg_temp;
 
+-- Create a function that bypasses RLS when checking if user profile is System Administrator
+CREATE OR REPLACE FUNCTION public.current_user_is_system_admin()
+RETURNS BOOLEAN AS $$
+DECLARE
+  is_admin BOOLEAN;
+BEGIN
+  -- This SELECT bypasses RLS because of SECURITY DEFINER
+  SELECT EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE profile_id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
+    AND profile_name = 'System Administrator'
+  ) INTO is_admin;
+  
+  RETURN COALESCE(is_admin, false);
+END;
+$$ LANGUAGE plpgsql 
+SECURITY DEFINER  -- This is the key - bypasses RLS!
+STABLE
+SET search_path = public, pg_temp;   
+
 -- =====================================================
 -- ROLE HIERARCHY FUNCTIONS
 -- =====================================================
@@ -714,6 +735,128 @@ USING (
     AND profiles.profile_name = 'System Administrator'
   )
 );
+
+-- Policy for System Administrators to have full access to roles
+CREATE POLICY "System Administrators have full access to roles"
+ON roles
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE profiles.profile_id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
+    AND profiles.profile_name = 'System Administrator'
+  )
+);
+
+-- Policy for System Administrators to have full access to users
+CREATE POLICY "System Administrators have full access to users"
+ON users
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE profiles.profile_id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
+    AND profiles.profile_name = 'System Administrator'
+  )
+);
+
+-- Policy for System Administrators to have full access to profiles
+CREATE POLICY "System Administrators have full access to profiles"
+ON profiles
+FOR ALL
+TO authenticated
+USING (
+  current_user_is_system_admin()
+);
+
+-- Policy for System Administrators to have full access to profile_object_permissions
+CREATE POLICY "System Administrators have full access to profile_object_permissions"
+ON profile_object_permissions
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE profiles.profile_id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
+    AND profiles.profile_name = 'System Administrator'
+  )
+);
+
+-- Policy for System Administrators to have full access to profile_field_permissions
+CREATE POLICY "System Administrators have full access to profile_field_permissions"
+ON profile_field_permissions
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE profiles.profile_id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
+    AND profiles.profile_name = 'System Administrator'
+  )
+);
+
+-- Policy for System Administrators to have full access to org_wide_defaults
+CREATE POLICY "System Administrators have full access to org_wide_defaults"
+ON org_wide_defaults
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE profiles.profile_id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
+    AND profiles.profile_name = 'System Administrator'
+  )
+);
+
+-- Policy for System Administrators to have full access to sharing_rules
+CREATE POLICY "System Administrators have full access to sharing_rules"
+ON sharing_rules
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE profiles.profile_id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
+    AND profiles.profile_name = 'System Administrator'
+  )
+);
+
+-- Policy for System Administrators to have full access to manual_shares
+CREATE POLICY "System Administrators have full access to manual_shares"
+ON manual_shares
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE profiles.profile_id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
+    AND profiles.profile_name = 'System Administrator'
+  )
+);
+
+-- Policy for System Administrators to have full access to list_views
+CREATE POLICY "System Administrators have full access to list_views"
+ON list_views
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE profiles.profile_id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
+    AND profiles.profile_name = 'System Administrator'
+  )
+);
+
 
 
 -- =====================================================

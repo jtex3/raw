@@ -15,9 +15,9 @@ export async function GET() {
       supabase = await createClient()
     }
     
-    // Dynamically get all tables from the public schema
-    const { data: sqlTables, error: sqlError } = await supabase
-      .rpc('get_schema_public_tables')
+    // Dynamically get all tables from the system schema
+    const { data: sqlTables, error: sqlError } = await supabase.schema('system')
+      .rpc('get_schema_system_tables')
     
     console.log('RPC Response:', { sqlTables, sqlError })
     
@@ -29,7 +29,7 @@ export async function GET() {
     }
     
     if (!sqlTables) {
-      console.error('No data returned from get_schema_public_tables')
+      console.error('No data returned from get_schema_system_tables')
       return NextResponse.json(
         { error: 'No data returned from schema query' },
         { status: 500 }
@@ -49,10 +49,16 @@ export async function GET() {
       tableList.map(async (table: { table_name: string, table_type: string }) => {
         try {
           const { count, error } = await supabase
+            .schema('system')
             .from(table.table_name)
             .select('*', { count: 'exact', head: true })
           
+          console.log(table.table_name);
+            
+          console.log(`Count for ${table.table_name}:`, { count, error });
+          
           if (error) {
+            console.error(`Error counting ${table.table_name}:`, error);
             throw new Error(`Failed to count records for ${table.table_name}: ${error.message}`)
           }
           
