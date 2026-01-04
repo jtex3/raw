@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Loader2, Database, Table } from 'lucide-react'
 
 interface SchemaObject {
@@ -32,7 +30,11 @@ export default function ObjectsPage() {
       }
       
       const data = await response.json()
-      setObjects(data.tables || [])
+      // Sort alphabetically by table name
+      const sortedObjects = (data.tables || []).sort((a: SchemaObject, b: SchemaObject) => 
+        a.table_name.localeCompare(b.table_name)
+      )
+      setObjects(sortedObjects)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -78,23 +80,24 @@ export default function ObjectsPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {objects.map((object) => (
-          <Card key={object.table_name} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center text-lg">
-                <Table className="mr-2 h-5 w-5 text-teal-600" />
-                {object.table_name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between mb-3">
-                <Badge variant={object.table_type === 'BASE TABLE' ? 'default' : 'secondary'}>
-                  {object.table_type}
-                </Badge>
-                <span className="text-sm text-gray-500">
-                  {object.record_count !== undefined ? `${object.record_count} records` : 'Unknown count'}
-                </span>
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="divide-y divide-gray-200">
+          {objects.map((object) => (
+            <div
+              key={object.table_name}
+              className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between"
+            >
+              <div className="flex items-center space-x-3">
+                <Table className="h-5 w-5 text-teal-600 flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900">
+                    {object.table_name}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    {object.table_type}
+                    {object.record_count !== undefined && ` • ${object.record_count} records`}
+                  </p>
+                </div>
               </div>
               <button
                 className="text-teal-600 hover:text-teal-700 text-sm font-medium"
@@ -105,9 +108,9 @@ export default function ObjectsPage() {
               >
                 View Details
               </button>
-            </CardContent>
-          </Card>
-        ))}
+            </div>
+          ))}
+        </div>
       </div>
 
       {objects.length === 0 && (

@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from 'react'
+import { useState }     from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
+import { Button }       from '@/components/ui/button'
 import { 
   Home, 
   Settings, 
