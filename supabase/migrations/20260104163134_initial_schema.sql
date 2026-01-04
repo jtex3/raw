@@ -6,7 +6,12 @@
 -- - Role hierarchy
 -- - Profile-based permissions (CRUD + Field-Level Security)
 -- - Sharing rules (OWD, criteria-based, manual sharing)
+-- - JWT token integration for org_id
+-- - Proper GRANT statements
 -- =====================================================
+
+-- Ensure required extensions
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- =====================================================
 -- CORE TABLES
@@ -28,10 +33,10 @@ CREATE TABLE roles (
   org_id UUID NOT NULL REFERENCES organizations(org_id) ON DELETE CASCADE,
   role_name TEXT NOT NULL,
   parent_role_id UUID REFERENCES roles(role_id) ON DELETE SET NULL,
-  level INTEGER, -- Optional: for simpler hierarchy queries
+  level INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(org_id, role_name),
-  CHECK (role_id != parent_role_id) -- Cannot be own parent
+  CHECK (role_id != parent_role_id)
 );
 
 -- Profiles
@@ -66,7 +71,7 @@ CREATE TABLE users (
 CREATE TABLE profile_object_permissions (
   permission_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   profile_id UUID NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
-  object_name TEXT NOT NULL, -- e.g., 'accounts', 'contacts'
+  object_name TEXT NOT NULL,
   can_create BOOLEAN DEFAULT false,
   can_read BOOLEAN DEFAULT false,
   can_update BOOLEAN DEFAULT false,
@@ -111,8 +116,8 @@ CREATE TABLE sharing_rules (
   shared_to_role_id UUID REFERENCES roles(role_id) ON DELETE CASCADE,
   include_subordinates BOOLEAN DEFAULT false,
   access_level TEXT NOT NULL CHECK (access_level IN ('read', 'read_write')),
-  criteria JSONB, -- For criteria-based rules
-  owner_role_id UUID REFERENCES roles(role_id) ON DELETE CASCADE, -- For ownership-based rules
+  criteria JSONB,
+  owner_role_id UUID REFERENCES roles(role_id) ON DELETE CASCADE,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(org_id, object_name, rule_name)
@@ -143,9 +148,9 @@ CREATE TABLE list_views (
   created_by_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
   is_public BOOLEAN DEFAULT false,
   owner_user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-  filters JSONB, -- WHERE conditions
-  columns JSONB, -- Fields to display
-  sort_by JSONB, -- Sort configuration
+  filters JSONB,
+  columns JSONB,
+  sort_by JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(org_id, object_name, view_name)
@@ -207,18 +212,48 @@ CREATE INDEX idx_list_views_owner ON list_views(owner_user_id);
 CREATE INDEX idx_list_views_public ON list_views(is_public);
 
 -- =====================================================
+-- JWT METADATA SETUP - ADD org_id TO JWT
+-- =====================================================
+
+-- Function to set org_id in JWT on user creation
+CREATE OR REPLACE FUNCTION public.handle_user_org_metadata()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Update auth.users to include org_id in app_metadata
+  UPDATE auth.users
+  SET raw_app_meta_data = 
+    COALESCE(raw_app_meta_data, '{}'::jsonb) || 
+    jsonb_build_object('org_id', NEW.org_id::text)
+  WHERE id = NEW.user_id;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER
+   SET search_path = public, pg_temp;
+
+-- Trigger on INSERT
+CREATE TRIGGER on_user_created_set_org_metadata
+  AFTER INSERT ON public.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_user_org_metadata();
+
+-- =====================================================
 -- HELPER FUNCTIONS
 -- =====================================================
 
--- Get current user's org_id from JWT
+-- Get current user's org_id from JWT (FAST - no DB query)
 CREATE OR REPLACE FUNCTION get_user_org()
 RETURNS UUID AS $$
 BEGIN
-  RETURN (auth.jwt() ->> 'org_id')::UUID;
+  RETURN (auth.jwt() -> 'app_metadata' ->> 'org_id')::UUID;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
 
--- Get current user's role_id
+-- Get current user's role_id (uses SECURITY DEFINER to bypass RLS)
 CREATE OR REPLACE FUNCTION get_user_role()
 RETURNS UUID AS $$
 BEGIN
@@ -228,9 +263,12 @@ BEGIN
     WHERE user_id = auth.uid()
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
 
--- Get current user's profile_id
+-- Get current user's profile_id (uses SECURITY DEFINER to bypass RLS)
 CREATE OR REPLACE FUNCTION get_user_profile()
 RETURNS UUID AS $$
 BEGIN
@@ -240,7 +278,10 @@ BEGIN
     WHERE user_id = auth.uid()
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
 
 -- =====================================================
 -- ROLE HIERARCHY FUNCTIONS
@@ -273,7 +314,10 @@ BEGIN
   -- Check if checking_user's role is above owner's role in hierarchy
   RETURN is_role_above(checking_role_id, owner_role_id);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
 
 -- Check if parent_role is above child_role in hierarchy
 CREATE OR REPLACE FUNCTION is_role_above(
@@ -299,7 +343,10 @@ BEGIN
     SELECT 1 FROM role_tree WHERE role_id = parent_role_id
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
 
 -- Check if role is subordinate of another role
 CREATE OR REPLACE FUNCTION is_subordinate_of(
@@ -325,7 +372,10 @@ BEGIN
     SELECT 1 FROM role_tree WHERE role_id = child_role_id
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
 
 -- =====================================================
 -- PERMISSION CHECKING FUNCTIONS
@@ -341,6 +391,11 @@ RETURNS BOOLEAN AS $$
 DECLARE
   user_profile_id UUID;
 BEGIN
+  -- Validate that checking_user_id is the current user (security)
+  IF checking_user_id != auth.uid() THEN
+    RETURN FALSE;
+  END IF;
+  
   -- Get user's profile
   SELECT profile_id INTO user_profile_id FROM users WHERE user_id = checking_user_id;
   
@@ -362,7 +417,10 @@ BEGIN
       )
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
 
 -- Check if user has field permission
 CREATE OR REPLACE FUNCTION has_field_permission(
@@ -375,6 +433,11 @@ RETURNS BOOLEAN AS $$
 DECLARE
   user_profile_id UUID;
 BEGIN
+  -- Validate that checking_user_id is the current user (security)
+  IF checking_user_id != auth.uid() THEN
+    RETURN FALSE;
+  END IF;
+  
   -- Get user's profile
   SELECT profile_id INTO user_profile_id FROM users WHERE user_id = checking_user_id;
   
@@ -395,7 +458,10 @@ BEGIN
       )
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
 
 -- Get visible fields for user on an object
 CREATE OR REPLACE FUNCTION get_visible_fields(
@@ -406,6 +472,11 @@ RETURNS TEXT[] AS $$
 DECLARE
   user_profile_id UUID;
 BEGIN
+  -- Validate that checking_user_id is the current user (security)
+  IF checking_user_id != auth.uid() THEN
+    RETURN ARRAY[]::TEXT[];
+  END IF;
+  
   -- Get user's profile
   SELECT profile_id INTO user_profile_id FROM users WHERE user_id = checking_user_id;
   
@@ -422,7 +493,10 @@ BEGIN
       AND can_read = true
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
 
 -- =====================================================
 -- SHARING RULES FUNCTIONS
@@ -442,7 +516,10 @@ BEGIN
       AND org_wide_defaults.object_name = get_owd_access.object_name
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
 
 -- Check if user has access via sharing rules
 CREATE OR REPLACE FUNCTION has_sharing_rule_access(
@@ -481,7 +558,10 @@ BEGIN
       -- TODO: Add criteria evaluation for criteria_based rules
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
 
 -- Check if user has manual share access
 CREATE OR REPLACE FUNCTION has_manual_share(
@@ -499,13 +579,50 @@ BEGIN
       AND manual_shares.object_name = has_manual_share.object_name
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   STABLE
+   SET search_path = public, pg_temp;
+
+-- To list all tables of public schema
+CREATE OR REPLACE FUNCTION get_schema_public_tables()
+RETURNS TABLE (table_name text, table_type text) 
+LANGUAGE sql SECURITY DEFINER
+AS $$
+  SELECT 
+    t.table_name::text,
+    t.table_type::text
+  FROM information_schema.tables t 
+  WHERE t.table_schema = 'public' 
+    AND t.table_type = 'BASE TABLE'
+    AND t.table_name <> 'schema_migrations';
+$$;
+
+-- To list all columns for a specific table of public schema
+CREATE OR REPLACE FUNCTION get_schema_public_tables_columns(target_table text)
+RETURNS TABLE (
+  column_name text,
+  data_type text,
+  is_nullable text,
+  column_default text
+) 
+LANGUAGE sql SECURITY DEFINER
+AS $$
+  SELECT 
+    c.column_name::text,
+    c.data_type::text,
+    c.is_nullable::text,
+    c.column_default::text
+  FROM information_schema.columns c
+  WHERE c.table_schema = 'public' 
+    AND c.table_name = target_table
+  ORDER BY c.ordinal_position;
+$$;
 
 -- =====================================================
--- RLS POLICIES - CORE TABLES
+-- ENABLE RLS ON ALL TABLES
 -- =====================================================
 
--- Enable RLS on all tables
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE roles ENABLE ROW LEVEL SECURITY;
@@ -516,6 +633,10 @@ ALTER TABLE org_wide_defaults ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sharing_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE manual_shares ENABLE ROW LEVEL SECURITY;
 ALTER TABLE list_views ENABLE ROW LEVEL SECURITY;
+
+-- =====================================================
+-- RLS POLICIES
+-- =====================================================
 
 -- Organizations: Users can only see their own org
 CREATE POLICY "Users see own organization" ON organizations
@@ -574,7 +695,7 @@ CREATE POLICY "Users see accessible list views" ON list_views
   );
 
 -- =====================================================
--- TRIGGERS
+-- TRIGGERS FOR TIMESTAMP UPDATES
 -- =====================================================
 
 -- Update updated_at timestamp
@@ -602,7 +723,64 @@ CREATE TRIGGER update_list_views_updated_at
   EXECUTE FUNCTION update_updated_at();
 
 -- =====================================================
--- COMMENTS
+-- GRANT STATEMENTS - TABLE PERMISSIONS
+-- =====================================================
+
+-- Grant CRUD permissions on all tables to authenticated users
+GRANT SELECT, INSERT, UPDATE, DELETE ON organizations TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON users TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON roles TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON profile_object_permissions TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON profile_field_permissions TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON org_wide_defaults TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON sharing_rules TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON manual_shares TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON list_views TO authenticated;
+
+-- Grant sequence usage (needed for UUID generation and auto-increment)
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+
+-- =====================================================
+-- GRANT STATEMENTS - FUNCTION PERMISSIONS
+-- =====================================================
+
+-- Grant EXECUTE on all functions to authenticated users
+GRANT EXECUTE ON FUNCTION public.handle_user_org_metadata() TO authenticated;
+GRANT EXECUTE ON FUNCTION get_user_org() TO authenticated;
+GRANT EXECUTE ON FUNCTION get_user_role() TO authenticated;
+GRANT EXECUTE ON FUNCTION get_user_profile() TO authenticated;
+GRANT EXECUTE ON FUNCTION can_access_via_role(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION is_role_above(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION is_subordinate_of(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION has_object_permission(UUID, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION has_field_permission(UUID, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_visible_fields(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_owd_access(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION has_sharing_rule_access(UUID, UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION has_manual_share(UUID, UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION update_updated_at() TO authenticated;
+GRANT EXECUTE ON FUNCTION get_schema_public_tables() TO authenticated;
+GRANT EXECUTE ON FUNCTION get_schema_public_tables_columns(TEXT) TO authenticated;
+
+-- =====================================================
+-- DEFAULT PRIVILEGES FOR FUTURE OBJECTS
+-- =====================================================
+
+-- Set default privileges for future tables
+ALTER DEFAULT PRIVILEGES IN SCHEMA public 
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
+
+-- Set default privileges for future sequences
+ALTER DEFAULT PRIVILEGES IN SCHEMA public 
+GRANT USAGE, SELECT ON SEQUENCES TO authenticated;
+
+-- Set default privileges for future functions
+ALTER DEFAULT PRIVILEGES IN SCHEMA public 
+GRANT EXECUTE ON FUNCTIONS TO authenticated;
+
+-- =====================================================
+-- TABLE COMMENTS
 -- =====================================================
 
 COMMENT ON TABLE organizations IS 'Multi-tenant organizations (orgs). Each org is completely isolated.';
@@ -615,99 +793,3 @@ COMMENT ON TABLE org_wide_defaults IS 'Organization-wide default access levels f
 COMMENT ON TABLE sharing_rules IS 'Criteria-based and ownership-based sharing rules.';
 COMMENT ON TABLE manual_shares IS 'Ad-hoc record sharing between users.';
 COMMENT ON TABLE list_views IS 'Custom list views with filters, columns, and sorting configuration.';
-
--- 1. Ensure extensions are available
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
--- =====================================================
--- STEP 1: CREATE AUTH USER (Internal Supabase Flow)
--- =====================================================
-  
-DO $$
-DECLARE
-  -- Configuration
-  v_email TEXT := 'admin@system.com';
-  v_password TEXT := 'smartsolution';
-  
-  -- Variable Holders
-  v_auth_user_id UUID := gen_random_uuid();
-  v_org_id UUID;
-  v_profile_id UUID;
-  v_role_id UUID;
-  v_password_hash TEXT := extensions.crypt('smartsolution', extensions.gen_salt('bf', 10));
-BEGIN
-
-  INSERT INTO auth.users (
-    instance_id, id, aud, role, email, encrypted_password, 
-    email_confirmed_at, last_sign_in_at, raw_app_meta_data, 
-    raw_user_meta_data, is_super_admin, created_at, updated_at,
-    confirmation_token, recovery_token, email_change_token_new, 
-    email_change, phone_change, phone_change_token, email_change_confirm_status
-  )
-  VALUES (
-    '00000000-0000-0000-0000-000000000000', v_auth_user_id, 'authenticated', 
-    'authenticated', v_email, v_password_hash, now(), now(), 
-    '{"provider":"email","providers":["email"]}', '{}', FALSE, now(), now(),
-    '', '', '', '', '', '', 0
-  );
-
-  INSERT INTO auth.identities (
-    id, user_id, identity_data, provider, provider_id, 
-    last_sign_in_at, created_at, updated_at
-  )
-  VALUES (
-    gen_random_uuid(), v_auth_user_id, 
-    jsonb_build_object('sub', v_auth_user_id, 'email', v_email, 'email_verified', true), 
-    'email', v_auth_user_id, now(), now(), now()
-  );
-
-  RAISE NOTICE 'Auth User created: %', v_auth_user_id;
-
-  -- =====================================================
-  -- STEP 2: CREATE SYSTEM ORGANIZATION
-  -- =====================================================
-  
-  INSERT INTO organizations (org_id, org_name, subdomain, is_active)
-  VALUES (gen_random_uuid(), 'System Organization', 'system', true)
-  RETURNING org_id INTO v_org_id;
-  
-  RAISE NOTICE 'Organization created: %', v_org_id;
-
-  -- =====================================================
-  -- STEP 3: CREATE SYSTEM ADMINISTRATOR PROFILE
-  -- =====================================================
-  
-  INSERT INTO profiles (profile_id, org_id, profile_name, description)
-  VALUES (gen_random_uuid(), v_org_id, 'System Administrator', 'Full access to all features and data')
-  RETURNING profile_id INTO v_profile_id;
-  
-  RAISE NOTICE 'Profile created: %', v_profile_id;
-
-  -- =====================================================
-  -- STEP 4: CREATE CEO/ADMIN ROLE
-  -- =====================================================
-  
-  INSERT INTO roles (role_id, org_id, role_name, parent_role_id, level)
-  VALUES (gen_random_uuid(), v_org_id, 'System Administrator', NULL, 0)
-  RETURNING role_id INTO v_role_id;
-  
-  RAISE NOTICE 'Role created: %', v_role_id;
-
-  -- =====================================================
-  -- STEP 5: LINK AUTH USER TO PUBLIC.USERS TABLE
-  -- =====================================================
-  
-  INSERT INTO public.users (user_id, org_id, profile_id, role_id, email, name, is_active)
-  VALUES (v_auth_user_id, v_org_id, v_profile_id, v_role_id, v_email, 'System Administrator', true);
-  
-  RAISE NOTICE 'User linked successfully to public.users!';
-
-  -- =====================================================
-  -- STEP 6: INITIAL PERMISSIONS (Optional but recommended)
-  -- =====================================================
-  
-  -- Grant Admin full CRUD on Organizations as an example
-  INSERT INTO profile_object_permissions (profile_id, object_name, can_create, can_read, can_update, can_delete)
-  VALUES (v_profile_id, 'organizations', true, true, true, true);
-
-END $$;
