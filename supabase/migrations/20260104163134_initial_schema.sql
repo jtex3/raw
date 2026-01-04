@@ -215,22 +215,24 @@ CREATE INDEX idx_list_views_public ON list_views(is_public);
 -- JWT METADATA SETUP - ADD org_id TO JWT
 -- =====================================================
 
--- Function to set org_id in JWT on user creation
+-- Function to set org_id and profile_id in JWT on user creation
 CREATE OR REPLACE FUNCTION public.handle_user_org_metadata()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Update auth.users to include org_id in app_metadata
+  -- Update auth.users to include org_id and profile_id in app_metadata
   UPDATE auth.users
   SET raw_app_meta_data = 
-    COALESCE(raw_app_meta_data, '{}'::jsonb) || 
-    jsonb_build_object('org_id', NEW.org_id::text)
+      COALESCE(raw_app_meta_data, '{}'::jsonb) || 
+      jsonb_build_object(
+        'org_id', NEW.org_id::text,
+        'profile_id', NEW.profile_id::text
+      )
   WHERE id = NEW.user_id;
-  
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql 
-   SECURITY DEFINER
-   SET search_path = public, pg_temp;
+SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Trigger on INSERT
 CREATE TRIGGER on_user_created_set_org_metadata
@@ -695,6 +697,24 @@ CREATE POLICY "Users see accessible list views" ON list_views
     org_id = get_user_org() 
     AND (is_public = true OR owner_user_id = auth.uid())
   );
+
+-- =====================================================
+-- RLS POLICIES FOR System Administrators
+-- =====================================================
+-- Policy for System Administrators to have full access to organizations
+CREATE POLICY "System Administrators have full access to organizations"
+ON organizations
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE profiles.profile_id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
+    AND profiles.profile_name = 'System Administrator'
+  )
+);
+
 
 -- =====================================================
 -- TRIGGERS FOR TIMESTAMP UPDATES
