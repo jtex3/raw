@@ -15,57 +15,49 @@ export async function GET() {
       supabase = await createClient()
     }
     
-    // Known tables from the schema migration file
-    const knownTables = [
-      'organizations',
-      'roles', 
-      'profiles',
-      'users',
-      'profile_object_permissions',
-      'profile_field_permissions',
-      'org_wide_defaults',
-      'sharing_rules',
-      'manual_shares',
-      'list_views',
-    ]
+    // Dynamically get all tables from the public schema
+    const { data: sqlTables, error: sqlError } = await supabase
+      .rpc('get_schema_public_tables')
+    
+    if (sqlError) {
+      return NextResponse.json(
+        { error: sqlError }
+      )
+    }
+    
+    const tableList = sqlTables?.map((t: { table_name: string, table_type: string }) => ({ 
+    table_name: t.table_name, 
+    table_type: t.table_type 
+  })) || []
     
     // Get actual record counts for each table
     const tablesWithCounts = await Promise.all(
-      knownTables.map(async (tableName) => {
+      tableList.map(async (table: { table_name: string, table_type: string }) => {
         try {
           const { count, error } = await supabase
-            .from(tableName)
+            .from(table.table_name)
             .select('*', { count: 'exact', head: true })
           
           if (error) {
-            console.warn(`Could not count ${tableName}:`, error)
-            // Return mock data based on migration for tables that should have data
-            const mockCounts: { [key: string]: number } = {
-              'organizations': 1,
-              'roles': 1, 
-              'profiles': 1,
-              'users': 1,
-              'profile_object_permissions': 1,
-            }
-            
             return {
-              table_name: tableName,
-              table_type: 'BASE TABLE',
-              record_count: mockCounts[tableName] || 0
+              table_name: table.table_name,
+              table_type: table.table_type,
+              record_count: 'ERR',
+              error: error
             }
           }
           
           return {
-            table_name: tableName,
-            table_type: 'BASE TABLE',
+            table_name: table.table_name,
+            table_type: table.table_type,
             record_count: count || 0
           }
         } catch (err) {
-          console.warn(`Error counting ${tableName}:`, err)
           return {
-            table_name: tableName,
-            table_type: 'BASE TABLE',
-            record_count: 0
+            table_name: table.table_name,
+            table_type: table.table_type,
+            record_count: 'ERR',
+            error: err
           }
         }
       })
@@ -75,8 +67,7 @@ export async function GET() {
   } catch (error) {
     console.error('Error in schema API:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error }
     )
   }
 }
