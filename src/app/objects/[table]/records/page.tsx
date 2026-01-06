@@ -5,6 +5,14 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, ArrowLeft, Table, Rows } from 'lucide-react'
 import Link from 'next/link'
+import {
+  Table as ShadcnTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 export default function TableRecordsPage() {
   const params = useParams()
@@ -103,30 +111,24 @@ export default function TableRecordsPage() {
       </div>
 
       {/* Records table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200">
         {records.length > 0 && columns.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
-                <tr>
+          <div className="rounded-md border">
+            <ShadcnTable>
+              <TableHeader>
+                <TableRow>
                   {columns.map((col) => (
-                    <th
-                      key={col}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <TableHead key={col} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {col}
-                    </th>
+                    </TableHead>
                   ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {records.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
+                  <TableRow key={idx} className="hover:bg-gray-50">
                     {columns.map((col) => (
-                      <td
-                        key={col}
-                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
-                      >
+                      <TableCell key={col} className="px-4 py-4 whitespace-nowrap text-sm">
                         {row[col] === null ? (
                           <span className="text-gray-400 italic">NULL</span>
                         ) : typeof row[col] === 'object' && row[col] !== null ? (
@@ -136,12 +138,12 @@ export default function TableRecordsPage() {
                         ) : (
                           String(row[col])
                         )}
-                      </td>
+                      </TableCell>
                     ))}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </ShadcnTable>
           </div>
         ) : (
           <div className="text-center py-12">
