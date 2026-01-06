@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, ArrowLeft, Table, Rows } from 'lucide-react'
+import { Loader2, ArrowLeft, Table, Rows, Edit } from 'lucide-react'
 import Link from 'next/link'
 import {
   Table as ShadcnTable,
@@ -19,6 +19,7 @@ export default function TableRecordsPage() {
   const tableName = params.table as string
   const [records, setRecords] = useState<any[]>([])
   const [columns, setColumns] = useState<string[]>([])
+  const [columnInfo, setColumnInfo] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
@@ -44,6 +45,7 @@ export default function TableRecordsPage() {
 
       const columnNames = colData?.map((c: any) => c.column_name) || []
       setColumns(columnNames)
+      setColumnInfo(colData || [])
 
       // Then fetch all records
       const { data, error: recError } = await supabase
@@ -62,6 +64,17 @@ export default function TableRecordsPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Helper function to get the primary key value for a record
+  const getRecordId = (row: any, cols: any[]) => {
+    // Try to find UUID columns first (common primary keys)
+    const uuidCol = cols.find(c => c.data_type === 'uuid' && row[c.column_name])
+    if (uuidCol) return row[uuidCol.column_name]
+    
+    // Fallback to first column that has a value
+    const firstCol = cols.find(c => row[c.column_name] !== null && row[c.column_name] !== undefined)
+    return firstCol ? row[firstCol.column_name] : row[Object.keys(row)[0]]
   }
 
   if (loading) {
@@ -122,6 +135,9 @@ export default function TableRecordsPage() {
                       {col}
                     </TableHead>
                   ))}
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -140,6 +156,15 @@ export default function TableRecordsPage() {
                         )}
                       </TableCell>
                     ))}
+                    <TableCell className="px-4 py-4 whitespace-nowrap text-sm">
+                      <Link
+                        href={`/objects/${tableName}/records/${getRecordId(row, columnInfo)}/edit`}
+                        className="inline-flex items-center px-3 py-1 text-xs font-medium text-teal-600 hover:text-teal-700 border border-teal-200 rounded hover:bg-teal-50 transition-colors"
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        Edit
+                      </Link>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
