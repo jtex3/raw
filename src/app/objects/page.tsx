@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, Database, Table } from 'lucide-react'
+import Link from 'next/link'
 
 interface SchemaObject {
   table_name: string
@@ -100,19 +101,26 @@ export default function ObjectsPage() {
                   </h3>
                   <p className="text-sm text-gray-500">
                     {object.table_type}
-                    {object.record_count !== undefined && ` • ${object.record_count} records`}
+                    {object.record_count !== undefined && (
+                      <>
+                        {' • '}
+                        <Link
+                          href={`/objects/${object.table_name}/records`}
+                          className="text-teal-600 hover:text-teal-700 underline"
+                        >
+                          {object.record_count} records
+                        </Link>
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
-              <button
+              <Link
+                href={`/objects/${object.table_name}`}
                 className="text-teal-600 hover:text-teal-700 text-sm font-medium"
-                onClick={() => {
-                  // TODO: Navigate to table details page
-                  console.log(`Navigate to ${object.table_name} details`)
-                }}
               >
                 View Details
-              </button>
+              </Link>
             </div>
           ))}
         </div>
