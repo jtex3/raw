@@ -80,14 +80,13 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
 
           {/* Footer */}
           <div className="p-4 border-t border-teal-800">
-            <Button
+            <button
               onClick={handleLogout}
-              variant="ghost"
-              className="w-full justify-start text-white hover:bg-teal-800"
+              className="flex items-center w-full p-3 text-white rounded-lg hover:bg-teal-800 transition-colors"
             >
               <LogOut size={20} />
               {isSidebarOpen && <span className="ml-3">Logout</span>}
-            </Button>
+            </button>
           </div>
         </div>
       </div>

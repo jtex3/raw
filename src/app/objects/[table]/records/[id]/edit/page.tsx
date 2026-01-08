@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, ArrowLeft, Save, X } from 'lucide-react'
 import Link from 'next/link'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface ColumnInfo {
   column_name: string
@@ -122,15 +123,27 @@ export default function EditRecordPage() {
         throw new Error('Could not determine primary key column')
       }
 
-      // Update the record
-      const { error } = await supabase
-        .schema('system')
-        .from(tableName)
-        .update(formData)
-        .eq(pkColumn.column_name, recordId)
+      if (recordId === 'new') {
+        // Insert new record
+        const { error } = await supabase
+          .schema('system')
+          .from(tableName)
+          .insert(formData)
 
-      if (error) {
-        throw new Error(error.message)
+        if (error) {
+          throw new Error(error.message)
+        }
+      } else {
+        // Update existing record
+        const { error } = await supabase
+          .schema('system')
+          .from(tableName)
+          .update(formData)
+          .eq(pkColumn.column_name, recordId)
+
+        if (error) {
+          throw new Error(error.message)
+        }
       }
 
       // Redirect back to records page
@@ -178,14 +191,11 @@ export default function EditRecordPage() {
     // Render different input types based on data type
     if (column.data_type === 'boolean') {
       return (
-        <select
-          value={value.toString()}
-          onChange={(e) => handleInputChange(column.column_name, e.target.value === 'true' as any)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-        >
-          <option value="true">True</option>
-          <option value="false">False</option>
-        </select>
+        <Checkbox
+          id={column.column_name}
+          checked={Boolean(value)}
+          onCheckedChange={(checked) => handleInputChange(column.column_name, Boolean(checked))}
+        />
       )
     }
 
@@ -249,10 +259,10 @@ export default function EditRecordPage() {
           Back to {tableName} Records
         </Link>
         <h1 className="text-3xl font-bold text-gray-900">
-          Edit Record
+          {recordId === 'new' ? 'Add Record' : 'Edit Record'}
         </h1>
         <p className="text-gray-600 mt-2">
-          Table: {tableName} • ID: {recordId}
+          Table: {tableName} • {recordId === 'new' ? 'New Record' : `ID: ${recordId}`}
         </p>
       </div>
 
@@ -287,20 +297,20 @@ export default function EditRecordPage() {
       <div className="fixed bottom-6 right-6 flex space-x-2">
         <Link
           href={`/objects/${tableName}/records`}
-          className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors shadow-lg"
+          className="inline-flex items-center px-3 py-1 text-xs font-medium text-teal-600 bg-white hover:bg-gray-50 border border-teal-600 rounded transition-colors shadow-lg"
         >
-          <X className="h-4 w-4 mr-2" />
+          <X className="h-3 w-3 mr-1" />
           Cancel
         </Link>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 border border-teal-600 rounded transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
           ) : (
-            <Save className="h-4 w-4 mr-2" />
+            <Save className="h-3 w-3 mr-1" />
           )}
           {saving ? 'Saving...' : 'Save'}
         </button>

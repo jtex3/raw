@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, ArrowLeft, Table, Rows, Edit, Plus } from 'lucide-react'
 import Link from 'next/link'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table as ShadcnTable,
   TableBody,
@@ -66,6 +67,35 @@ export default function TableRecordsPage() {
     }
   }
 
+  // Helper function to render cell content based on data type
+  const renderCellContent = (value: any, columnName: string) => {
+    if (value === null) {
+      return <span className="text-gray-400 italic">NULL</span>
+    }
+    
+    // Check if this column is a boolean type
+    const column = columnInfo.find(c => c.column_name === columnName)
+    if (column?.data_type === 'boolean') {
+      return (
+        <Checkbox
+          checked={Boolean(value)}
+          disabled
+          className="pointer-events-none"
+        />
+      )
+    }
+    
+    if (typeof value === 'object' && value !== null) {
+      return (
+        <span className="text-gray-600 font-mono text-xs">
+          {JSON.stringify(value)}
+        </span>
+      )
+    }
+    
+    return String(value)
+  }
+
   // Helper function to get the primary key value for a record
   const getRecordId = (row: any, cols: any[]) => {
     // Try to find UUID columns first (common primary keys)
@@ -108,10 +138,10 @@ export default function TableRecordsPage() {
       {/* Floating Add Button */}
       <Link
         href={`/objects/${tableName}/records/new/edit`}
-        className="absolute top-18 right-6 flex items-center px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors shadow-lg"
+        className="absolute top-18 right-6 inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 border border-teal-600 rounded transition-colors shadow-lg"
         title="Add New Record"
       >
-        <Plus className="h-6 w-6 mr-2" />
+        <Plus className="h-3 w-3 mr-1" />
         Add Record
       </Link>
 
@@ -155,21 +185,13 @@ export default function TableRecordsPage() {
                   <TableRow key={idx} className="hover:bg-gray-50">
                     {columns.map((col) => (
                       <TableCell key={col} className="px-4 py-4 whitespace-nowrap text-sm">
-                        {row[col] === null ? (
-                          <span className="text-gray-400 italic">NULL</span>
-                        ) : typeof row[col] === 'object' && row[col] !== null ? (
-                          <span className="text-gray-600 font-mono text-xs">
-                            {JSON.stringify(row[col])}
-                          </span>
-                        ) : (
-                          String(row[col])
-                        )}
+                        {renderCellContent(row[col], col)}
                       </TableCell>
                     ))}
                     <TableCell className="px-4 py-4 whitespace-nowrap text-sm">
                       <Link
                         href={`/objects/${tableName}/records/${getRecordId(row, columnInfo)}/edit`}
-                        className="inline-flex items-center px-3 py-1 text-xs font-medium text-teal-600 hover:text-teal-700 border border-teal-200 rounded hover:bg-teal-50 transition-colors"
+                        className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 border border-teal-600 rounded transition-colors"
                       >
                         <Edit className="h-3 w-3 mr-1" />
                         Edit
