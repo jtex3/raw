@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, ArrowLeft, Table, Rows, Edit } from 'lucide-react'
+import { Loader2, ArrowLeft, Table, Rows, Edit, Plus } from 'lucide-react'
 import Link from 'next/link'
 import {
   Table as ShadcnTable,
@@ -104,7 +104,17 @@ export default function TableRecordsPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 relative">
+      {/* Floating Add Button */}
+      <Link
+        href={`/objects/${tableName}/records/new/edit`}
+        className="absolute top-18 right-6 flex items-center px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors shadow-lg"
+        title="Add New Record"
+      >
+        <Plus className="h-6 w-6 mr-2" />
+        Add Record
+      </Link>
+
       {/* Header with back navigation */}
       <div className="mb-6">
         <Link

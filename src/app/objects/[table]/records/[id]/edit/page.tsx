@@ -28,9 +28,38 @@ export default function EditRecordPage() {
 
   useEffect(() => {
     if (tableName && recordId) {
-      fetchRecordAndColumns()
+      if (recordId === 'new') {
+        // For new records, just fetch columns, don't fetch existing data
+        fetchColumnsOnly()
+      } else {
+        // For existing records, fetch both columns and record data
+        fetchRecordAndColumns()
+      }
     }
   }, [tableName, recordId])
+
+  const fetchColumnsOnly = async () => {
+    try {
+      setLoading(true)
+
+      // Get column information only
+      const { data: colData, error: colError } = await supabase
+        .schema('system')
+        .rpc('get_schema_system_tables_columns', { target_table: tableName })
+
+      if (colError) {
+        throw new Error(colError.message)
+      }
+
+      setColumns(colData || [])
+      // For new records, start with empty form data
+      setFormData({})
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const fetchRecordAndColumns = async () => {
     try {
