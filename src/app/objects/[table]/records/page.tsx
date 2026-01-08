@@ -50,59 +50,38 @@ export default function TableRecordsPage() {
       setColumns(columnNames)
       setColumnInfo(colData || [])
 
-      // Get foreign key information - truly automatic detection for any UUID column
+      // Get foreign key information - use simple column name patterns for common relationships
       const allForeignKeys: any[] = []
       
-      // Check for UUID columns that reference other tables by testing the reference
-      const uuidColumns = colData?.filter((col: any) => 
-        col.data_type === 'uuid' && col.column_name !== 'id'
-      ) || []
-      
-      // Test all possible reference tables for each UUID column
-      const possibleTables = ['organizations', 'profiles', 'roles', 'users']
-      
-      for (const col of uuidColumns) {
-        for (const table of possibleTables) {
-          // Test if this UUID column references table
-          const { data: testData, error: testError } = await supabase
-            .schema('system')
-            .from(table)
-            .select('id')
-            .limit(1)
-          
-          if (!testError && testData) {
-            // Now test if actual values from this column reference to table
-            const { data: sampleValue, error: sampleError } = await supabase
-              .schema('system')
-              .from(tableName)
-              .select(col.column_name)
-              .not(col.column_name, 'is', null)
-              .limit(1)
+      // Check for common foreign key column patterns
+      colData?.forEach((col: any) => {
+        if (col.data_type === 'uuid' && col.column_name !== 'id') {
+          // Common foreign key patterns
+          if (col.column_name.endsWith('_id')) {
+            const baseName = col.column_name.replace('_id', '')
             
-            if (!sampleError && sampleValue && sampleValue[0][col.column_name]) {
-              const testValue = sampleValue[0][col.column_name]
-              
-              // Test if this value exists in the reference table
-              const { data: referenceCheck, error: refError } = await supabase
-                .schema('system')
-                .from(table)
-                .select('id')
-                .eq('id', testValue)
-                .single()
-              
-              if (!refError && referenceCheck) {
-                // This column references this table!
-                allForeignKeys.push({
-                  column_name: col.column_name,
-                  foreign_table_name: `system.${table}`,
-                  foreign_column_name: 'id'
-                })
-                break // Found the reference table, move to next column
-              }
+            // Map common base names to table names
+            const tableMap: { [key: string]: string } = {
+              'org': 'organizations',
+              'organization': 'organizations', 
+              'profile': 'profiles',
+              'user': 'users',
+              'role': 'roles',
+              'owner_user': 'users',
+              'created_by_user': 'users',
+              'parent_role': 'roles'
+            }
+            
+            if (tableMap[baseName]) {
+              allForeignKeys.push({
+                column_name: col.column_name,
+                foreign_table_name: `system.${tableMap[baseName]}`,
+                foreign_column_name: 'id'
+              })
             }
           }
         }
-      }
+      })
 
       setForeignKeys(allForeignKeys)
 
@@ -154,50 +133,6 @@ export default function TableRecordsPage() {
           mode="view"
         />
       )
-    }
-    
-    // Fallback for common foreign keys if detection fails
-    if (column?.data_type === 'uuid') {
-      if (columnName === 'org_id') {
-        console.log('Fallback: rendering org_id as foreign key')
-        return (
-          <SmartForeignKeyReference
-            value={value}
-            referenceTable="system.organizations"
-            mode="view"
-          />
-        )
-      }
-      if (columnName === 'profile_id') {
-        console.log('Fallback: rendering profile_id as foreign key')
-        return (
-          <SmartForeignKeyReference
-            value={value}
-            referenceTable="system.profiles"
-            mode="view"
-          />
-        )
-      }
-      if (columnName === 'role_id') {
-        console.log('Fallback: rendering role_id as foreign key')
-        return (
-          <SmartForeignKeyReference
-            value={value}
-            referenceTable="system.roles"
-            mode="view"
-          />
-        )
-      }
-      if (columnName === 'parent_role_id') {
-        console.log('Fallback: rendering parent_role_id as foreign key')
-        return (
-          <SmartForeignKeyReference
-            value={value}
-            referenceTable="system.roles"
-            mode="view"
-          />
-        )
-      }
     }
     
     if (typeof value === 'object' && value !== null) {

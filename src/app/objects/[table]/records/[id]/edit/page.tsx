@@ -137,7 +137,7 @@ export default function EditRecordPage() {
     }
   }
 
-  const handleInputChange = (columnName: string, value: string | boolean) => {
+  const handleInputChange = (columnName: string, value: string | boolean | number | null) => {
     setFormData((prev: any) => ({
       ...prev,
       [columnName]: value
@@ -231,6 +231,17 @@ export default function EditRecordPage() {
       )
     }
 
+    if (column.data_type === 'integer' || column.data_type === 'int4') {
+      return (
+        <input
+          type="number"
+          value={value ?? ''}
+          onChange={(e) => handleInputChange(column.column_name, e.target.value === '' ? null : parseInt(e.target.value, 10))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
+        />
+      )
+    }
+
     if (column.data_type.includes('text') || column.data_type.includes('char')) {
       return (
         <textarea
@@ -295,8 +306,8 @@ export default function EditRecordPage() {
           referenceTable={getReferenceTable(columnName)}
           columnName={columnName}
           onValueChange={(newValue) => {
-            setRecord(prev => ({ ...prev, [columnName]: newValue }))
-            setFormData(prev => ({ ...prev, [columnName]: newValue }))
+            setRecord((prev: any) => ({ ...prev, [columnName]: newValue }))
+            setFormData((prev: any) => ({ ...prev, [columnName]: newValue }))
           }}
         />
 >>>>>>> 3dcb13f (foreign-key-edit-v2-working)
@@ -307,19 +318,33 @@ export default function EditRecordPage() {
     return (
       <div className="space-y-2">
         {column?.data_type === 'boolean' ? (
-          <Input
-            type="checkbox"
+          <Checkbox
+            id={column.column_name}
             checked={Boolean(value)}
-            onChange={(e) => {
-              setRecord(prev => ({ ...prev, [columnName]: e.target.checked }))
+            onCheckedChange={(checked) => {
+              const boolValue = Boolean(checked)
+              setRecord((prev: any) => ({ ...prev, [columnName]: boolValue }))
+              setFormData((prev: any) => ({ ...prev, [columnName]: boolValue }))
             }}
+          />
+        ) : column?.data_type === 'integer' || column?.data_type === 'int4' ? (
+          <Input
+            type="number"
+            value={value ?? ''}
+            onChange={(e) => {
+              const numValue = e.target.value === '' ? null : parseInt(e.target.value, 10)
+              setRecord((prev: any) => ({ ...prev, [columnName]: numValue }))
+              setFormData((prev: any) => ({ ...prev, [columnName]: numValue }))
+            }}
+            placeholder={column && column.column_default ? column.column_default : ''}
           />
         ) : column?.data_type === 'text' ? (
           <Input
             type="text"
             value={value || ''}
             onChange={(e) => {
-              setRecord(prev => ({ ...prev, [columnName]: e.target.value }))
+              setRecord((prev: any) => ({ ...prev, [columnName]: e.target.value }))
+              setFormData((prev: any) => ({ ...prev, [columnName]: e.target.value }))
             }}
             placeholder={column && column.column_default ? column.column_default : ''}
           />
@@ -328,7 +353,8 @@ export default function EditRecordPage() {
             type="text"
             value={value || ''}
             onChange={(e) => {
-              setRecord(prev => ({ ...prev, [columnName]: e.target.value }))
+              setRecord((prev: any) => ({ ...prev, [columnName]: e.target.value }))
+              setFormData((prev: any) => ({ ...prev, [columnName]: e.target.value }))
             }}
             placeholder={column && column.column_default ? column.column_default : ''}
           />
