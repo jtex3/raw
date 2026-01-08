@@ -6,6 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import { Loader2, ArrowLeft, Save, X } from 'lucide-react'
 import Link from 'next/link'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import InlineForeignKeyEditor from '@/components/ui/inline-foreign-key-editor'
 
 interface ColumnInfo {
   column_name: string
@@ -21,6 +24,8 @@ export default function EditRecordPage() {
   const recordId = params.id as string
   const [record, setRecord] = useState<any>({})
   const [columns, setColumns] = useState<ColumnInfo[]>([])
+  const [columnInfo, setColumnInfo] = useState<any[]>([])
+  const [foreignKeys, setForeignKeys] = useState<any[]>([])
   const [formData, setFormData] = useState<any>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -33,11 +38,37 @@ export default function EditRecordPage() {
         // For new records, just fetch columns, don't fetch existing data
         fetchColumnsOnly()
       } else {
-        // For existing records, fetch both columns and record data
-        fetchRecordAndColumns()
+        // For existing records, fetch both columns and data
+        fetchTableData()
       }
     }
   }, [tableName, recordId])
+
+  // Fetch foreign key information
+  useEffect(() => {
+    if (tableName) {
+      const fetchForeignKeys = async () => {
+        try {
+          const { data: fkData, error: fkError } = await supabase
+            .schema('system')
+            .rpc('get_table_foreign_keys', { table_name: tableName })
+
+          if (fkError) {
+            console.error('Error fetching foreign keys:', fkError)
+            setForeignKeys([])
+          } else {
+            console.log('Foreign keys detected:', fkData)
+            setForeignKeys(fkData || [])
+          }
+        } catch (err) {
+          console.error('Error fetching foreign keys:', err)
+          setForeignKeys([])
+        }
+      }
+
+      fetchForeignKeys()
+    }
+  }, [tableName])
 
   const fetchColumnsOnly = async () => {
     try {
@@ -53,16 +84,17 @@ export default function EditRecordPage() {
       }
 
       setColumns(colData || [])
-      // For new records, start with empty form data
+      setColumnInfo(colData || [])
       setFormData({})
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      console.error('Error fetching columns:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch columns')
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchRecordAndColumns = async () => {
+  const fetchTableData = async () => {
     try {
       setLoading(true)
 
@@ -221,6 +253,78 @@ export default function EditRecordPage() {
     )
   }
 
+  const renderField = (columnName: string, value: any) => {
+    const column = columns.find(c => c.column_name === columnName)
+    
+    // Safety check - if column is undefined, don't render
+    if (!column) {
+      return <div className="text-red-500">Column {columnName} not found</div>
+    }
+    
+    // If it's a UUID field (except primary key), use the inline editor
+    if (column?.data_type === 'uuid' && columnName !== 'id') {
+      // Map column names to proper table names
+      const getReferenceTable = (colName: string) => {
+        const tableMap: { [key: string]: string } = {
+          'org_id': 'system.organizations',
+          'profile_id': 'system.profiles',
+          'role_id': 'system.roles',
+          'user_id': 'system.users',
+          'permission_id': 'system.permissions'
+        }
+        return tableMap[colName] || `system.${colName.replace('_id', 's')}`
+      }
+
+      return (
+        <div className="space-y-2">
+          <Label htmlFor={columnName}>{columnName}</Label>
+          <InlineForeignKeyEditor
+            value={value}
+            referenceTable={getReferenceTable(columnName)}
+            columnName={columnName}
+            onValueChange={(newValue) => {
+              setRecord(prev => ({ ...prev, [columnName]: newValue }))
+            }}
+          />
+        </div>
+      )
+    }
+
+    // Regular field
+    return (
+      <div className="space-y-2">
+        <Label htmlFor={columnName}>{columnName}</Label>
+        {column?.data_type === 'boolean' ? (
+          <Input
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(e) => {
+              setRecord(prev => ({ ...prev, [columnName]: e.target.checked }))
+            }}
+          />
+        ) : column?.data_type === 'text' ? (
+          <Input
+            type="text"
+            value={value || ''}
+            onChange={(e) => {
+              setRecord(prev => ({ ...prev, [columnName]: e.target.value }))
+            }}
+            placeholder={column && column.column_default ? column.column_default : ''}
+          />
+        ) : (
+          <Input
+            type="text"
+            value={value || ''}
+            onChange={(e) => {
+              setRecord(prev => ({ ...prev, [columnName]: e.target.value }))
+            }}
+            placeholder={column && column.column_default ? column.column_default : ''}
+          />
+        )}
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -237,7 +341,7 @@ export default function EditRecordPage() {
           <h3 className="text-red-800 font-medium">Error</h3>
           <p className="text-red-600 mt-1">{error}</p>
           <button
-            onClick={fetchRecordAndColumns}
+            onClick={fetchTableData}
             className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
           >
             Retry
@@ -281,7 +385,7 @@ export default function EditRecordPage() {
                 </div>
               </div>
               <div className="md:col-span-2">
-                {renderInput(column)}
+                {renderField(column.column_name, formData[column.column_name])}
                 {!isEditable(column) && (
                   <p className="text-xs text-gray-500 mt-1">
                     This field is read-only
