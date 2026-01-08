@@ -46,9 +46,9 @@ BEGIN
   -- STEP 2: CREATE SYSTEM ORGANIZATION
   -- =====================================================
   
-  INSERT INTO system.organizations (org_id, org_name, subdomain, is_active)
-  VALUES (gen_random_uuid(), 'System Organization', 'system', true)
-  RETURNING org_id INTO v_org_id;
+  INSERT INTO system.organizations (id, name, org_name, subdomain, is_active)
+  VALUES (gen_random_uuid(), 'System Organization', 'System Organization', 'system', true)
+  RETURNING id INTO v_org_id;
   
   RAISE NOTICE 'Organization created: %', v_org_id;
 
@@ -56,9 +56,9 @@ BEGIN
   -- STEP 3: CREATE SYSTEM ADMINISTRATOR PROFILE
   -- =====================================================
   
-  INSERT INTO system.profiles (profile_id, org_id, profile_name, description)
-  VALUES (gen_random_uuid(), v_org_id, 'System Administrator', 'Full access to all features and data')
-  RETURNING profile_id INTO v_profile_id;
+  INSERT INTO system.profiles (id, name, org_id, profile_name, description)
+  VALUES (gen_random_uuid(), 'System Administrator Profile', v_org_id, 'System Administrator', 'Full access to all features and data')
+  RETURNING id INTO v_profile_id;
   
   RAISE NOTICE 'Profile created: %', v_profile_id;
 
@@ -66,9 +66,9 @@ BEGIN
   -- STEP 4: CREATE CEO/ADMIN ROLE
   -- =====================================================
   
-  INSERT INTO system.roles (role_id, org_id, role_name, parent_role_id, level)
-  VALUES (gen_random_uuid(), v_org_id, 'System Administrator', NULL, 0)
-  RETURNING role_id INTO v_role_id;
+  INSERT INTO system.roles (id, name, org_id, role_name, parent_role_id, level)
+  VALUES (gen_random_uuid(), 'System Administrator Role', v_org_id, 'System Administrator', NULL, 0)
+  RETURNING id INTO v_role_id;
   
   RAISE NOTICE 'Role created: %', v_role_id;
 
@@ -76,8 +76,8 @@ BEGIN
   -- STEP 5: LINK AUTH USER TO PUBLIC.USERS TABLE
   -- =====================================================
   
-  INSERT INTO system.users (user_id, org_id, profile_id, role_id, email, name, is_active)
-  VALUES (v_auth_user_id, v_org_id, v_profile_id, v_role_id, v_email, 'System Administrator', true);
+  INSERT INTO system.users (id, name, org_id, profile_id, role_id, email, is_active)
+  VALUES (v_auth_user_id, 'System Administrator User', v_org_id, v_profile_id, v_role_id, v_email, true);
   
   RAISE NOTICE 'User linked successfully to system.users!';
 
@@ -86,7 +86,7 @@ BEGIN
   -- =====================================================
   
   -- Grant Admin full CRUD on Organizations as an example
-  INSERT INTO system.profile_object_permissions (profile_id, object_name, can_create, can_read, can_update, can_delete)
-  VALUES (v_profile_id, 'organizations', true, true, true, true);
+  INSERT INTO system.profile_object_permissions (id, name, profile_id, object_name, can_create, can_read, can_update, can_delete)
+  VALUES (gen_random_uuid(), 'Admin Organizations Permission', v_profile_id, 'organizations', true, true, true, true);
 
 END $$;

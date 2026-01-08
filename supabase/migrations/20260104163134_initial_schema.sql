@@ -19,7 +19,8 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Organizations (Tenants)
 CREATE TABLE system.organizations (
-  org_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
   org_name TEXT NOT NULL,
   subdomain TEXT NOT NULL,
   is_active BOOLEAN DEFAULT true,
@@ -30,20 +31,22 @@ CREATE TABLE system.organizations (
 
 -- Roles (with hierarchy)
 CREATE TABLE system.roles (
-  role_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES system.organizations(org_id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  org_id UUID NOT NULL REFERENCES system.organizations(id) ON DELETE CASCADE,
   role_name TEXT NOT NULL,
-  parent_role_id UUID REFERENCES system.roles(role_id) ON DELETE SET NULL,
+  parent_role_id UUID REFERENCES system.roles(id) ON DELETE SET NULL,
   level INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(org_id, role_name),
-  CHECK (role_id != parent_role_id)
+  CHECK (id != parent_role_id)
 );
 
 -- Profiles
 CREATE TABLE system.profiles (
-  profile_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES system.organizations(org_id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  org_id UUID NOT NULL REFERENCES system.organizations(id) ON DELETE CASCADE,
   profile_name TEXT NOT NULL,
   description TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -52,12 +55,12 @@ CREATE TABLE system.profiles (
 
 -- Users
 CREATE TABLE system.users (
-  user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES system.organizations(org_id) ON DELETE CASCADE,
-  profile_id UUID NOT NULL REFERENCES system.profiles(profile_id) ON DELETE RESTRICT,
-  role_id UUID REFERENCES system.roles(role_id) ON DELETE SET NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  org_id UUID NOT NULL REFERENCES system.organizations(id) ON DELETE CASCADE,
+  profile_id UUID NOT NULL REFERENCES system.profiles(id) ON DELETE RESTRICT,
+  role_id UUID REFERENCES system.roles(id) ON DELETE SET NULL,
   email TEXT NOT NULL,
-  name TEXT NOT NULL,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -70,8 +73,9 @@ CREATE TABLE system.users (
 
 -- Profile Object Permissions (CRUD per object/table)
 CREATE TABLE system.profile_object_permissions (
-  permission_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id UUID NOT NULL REFERENCES system.profiles(profile_id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  profile_id UUID NOT NULL REFERENCES system.profiles(id) ON DELETE CASCADE,
   object_name TEXT NOT NULL,
   can_create BOOLEAN DEFAULT false,
   can_read BOOLEAN DEFAULT false,
@@ -83,8 +87,9 @@ CREATE TABLE system.profile_object_permissions (
 
 -- Profile Field Permissions (Field-Level Security)
 CREATE TABLE system.profile_field_permissions (
-  permission_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id UUID NOT NULL REFERENCES system.profiles(profile_id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  profile_id UUID NOT NULL REFERENCES system.profiles(id) ON DELETE CASCADE,
   object_name TEXT NOT NULL,
   field_name TEXT NOT NULL,
   can_read BOOLEAN DEFAULT false,
@@ -99,8 +104,9 @@ CREATE TABLE system.profile_field_permissions (
 
 -- Organization-Wide Defaults
 CREATE TABLE system.org_wide_defaults (
-  owd_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES system.organizations(org_id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  org_id UUID NOT NULL REFERENCES system.organizations(id) ON DELETE CASCADE,
   object_name TEXT NOT NULL,
   default_access TEXT NOT NULL CHECK (default_access IN ('private', 'public_read_only', 'public_read_write')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -109,16 +115,17 @@ CREATE TABLE system.org_wide_defaults (
 
 -- Sharing Rules
 CREATE TABLE system.sharing_rules (
-  rule_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES system.organizations(org_id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  org_id UUID NOT NULL REFERENCES system.organizations(id) ON DELETE CASCADE,
   object_name TEXT NOT NULL,
   rule_name TEXT NOT NULL,
   rule_type TEXT NOT NULL CHECK (rule_type IN ('criteria_based', 'ownership_based')),
-  shared_to_role_id UUID REFERENCES system.roles(role_id) ON DELETE CASCADE,
+  shared_to_role_id UUID REFERENCES system.roles(id) ON DELETE CASCADE,
   include_subordinates BOOLEAN DEFAULT false,
   access_level TEXT NOT NULL CHECK (access_level IN ('read', 'read_write')),
   criteria JSONB,
-  owner_role_id UUID REFERENCES system.roles(role_id) ON DELETE CASCADE,
+  owner_role_id UUID REFERENCES system.roles(id) ON DELETE CASCADE,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(org_id, object_name, rule_name)
@@ -126,12 +133,13 @@ CREATE TABLE system.sharing_rules (
 
 -- Manual Shares
 CREATE TABLE system.manual_shares (
-  share_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES system.organizations(org_id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  org_id UUID NOT NULL REFERENCES system.organizations(id) ON DELETE CASCADE,
   object_name TEXT NOT NULL,
   record_id UUID NOT NULL,
-  shared_by_user_id UUID NOT NULL REFERENCES system.users(user_id) ON DELETE CASCADE,
-  shared_to_user_id UUID NOT NULL REFERENCES system.users(user_id) ON DELETE CASCADE,
+  shared_by_user_id UUID NOT NULL REFERENCES system.users(id) ON DELETE CASCADE,
+  shared_to_user_id UUID NOT NULL REFERENCES system.users(id) ON DELETE CASCADE,
   access_level TEXT NOT NULL CHECK (access_level IN ('read', 'read_write')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(object_name, record_id, shared_to_user_id)
@@ -143,13 +151,14 @@ CREATE TABLE system.manual_shares (
 
 -- List Views
 CREATE TABLE system.list_views (
-  view_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES system.organizations(org_id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  org_id UUID NOT NULL REFERENCES system.organizations(id) ON DELETE CASCADE,
   object_name TEXT NOT NULL,
   view_name TEXT NOT NULL,
-  created_by_user_id UUID NOT NULL REFERENCES system.users(user_id) ON DELETE CASCADE,
+  created_by_user_id UUID NOT NULL REFERENCES system.users(id) ON DELETE CASCADE,
   is_public BOOLEAN DEFAULT false,
-  owner_user_id UUID REFERENCES system.users(user_id) ON DELETE CASCADE,
+  owner_user_id UUID REFERENCES system.users(id) ON DELETE CASCADE,
   filters JSONB,
   columns JSONB,
   sort_by JSONB,
@@ -229,7 +238,7 @@ BEGIN
         'org_id', NEW.org_id::text,
         'profile_id', NEW.profile_id::text
       )
-  WHERE id = NEW.user_id;
+  WHERE id = NEW.id;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql 
@@ -263,7 +272,7 @@ BEGIN
   RETURN (
     SELECT role_id 
     FROM system.users 
-    WHERE user_id = auth.uid()
+    WHERE id = auth.uid()
   );
 END;
 $$ LANGUAGE plpgsql 
@@ -277,7 +286,7 @@ BEGIN
   RETURN (
     SELECT profile_id 
     FROM system.users 
-    WHERE user_id = auth.uid()
+    WHERE id = auth.uid()
   );
 END;
 $$ LANGUAGE plpgsql 
@@ -294,7 +303,7 @@ BEGIN
   SELECT EXISTS (
     SELECT 1
     FROM system.profiles
-    WHERE profile_id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
+    WHERE id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
     AND profile_name = 'System Administrator'
   ) INTO is_admin;
   
@@ -327,8 +336,8 @@ BEGIN
   END IF;
   
   -- Get roles
-  SELECT role_id INTO checking_role_id FROM system.users WHERE user_id = checking_user_id;
-  SELECT role_id INTO owner_role_id FROM system.users WHERE user_id = record_owner_id;
+  SELECT role_id INTO checking_role_id FROM system.users WHERE id = checking_user_id;
+  SELECT role_id INTO owner_role_id FROM system.users WHERE id = record_owner_id;
   
   -- If either user has no role, deny access
   IF checking_role_id IS NULL OR owner_role_id IS NULL THEN
@@ -353,18 +362,18 @@ BEGIN
   RETURN EXISTS (
     WITH RECURSIVE role_tree AS (
       -- Start from child role
-      SELECT role_id, parent_role_id
+      SELECT id, parent_role_id
       FROM system.roles
-      WHERE role_id = child_role_id
+      WHERE id = child_role_id
       
       UNION ALL
       
       -- Walk up the tree
-      SELECT r.role_id, r.parent_role_id
+      SELECT r.id, r.parent_role_id
       FROM system.roles r
-      JOIN role_tree rt ON r.role_id = rt.parent_role_id
+      JOIN role_tree rt ON r.id = rt.parent_role_id
     )
-    SELECT 1 FROM role_tree WHERE role_id = parent_role_id
+    SELECT 1 FROM role_tree WHERE id = parent_role_id
   );
 END;
 $$;
@@ -382,18 +391,18 @@ BEGIN
   RETURN EXISTS (
     WITH RECURSIVE role_tree AS (
       -- Start from parent role
-      SELECT role_id, parent_role_id
+      SELECT id, parent_role_id
       FROM system.roles
-      WHERE role_id = parent_role_id
+      WHERE id = parent_role_id
       
       UNION ALL
       
       -- Walk down the tree
-      SELECT r.role_id, r.parent_role_id
+      SELECT r.id, r.parent_role_id
       FROM system.roles r
-      JOIN role_tree rt ON r.parent_role_id = rt.role_id
+      JOIN role_tree rt ON r.parent_role_id = rt.id
     )
-    SELECT 1 FROM role_tree WHERE role_id = child_role_id
+    SELECT 1 FROM role_tree WHERE id = child_role_id
   );
 END;
 $$;
@@ -421,7 +430,7 @@ BEGIN
   END IF;
   
   -- Get user's profile
-  SELECT profile_id INTO user_profile_id FROM system.users WHERE user_id = checking_user_id;
+  SELECT profile_id INTO user_profile_id FROM system.users WHERE id = checking_user_id;
   
   IF user_profile_id IS NULL THEN
     RETURN FALSE;
@@ -463,7 +472,7 @@ BEGIN
   END IF;
   
   -- Get user's profile
-  SELECT profile_id INTO user_profile_id FROM system.users WHERE user_id = checking_user_id;
+  SELECT profile_id INTO user_profile_id FROM system.users WHERE id = checking_user_id;
   
   IF user_profile_id IS NULL THEN
     RETURN FALSE;
@@ -499,7 +508,7 @@ BEGIN
   END IF;
   
   -- Get user's profile
-  SELECT profile_id INTO user_profile_id FROM system.users WHERE user_id = checking_user_id;
+  SELECT profile_id INTO user_profile_id FROM system.users WHERE id = checking_user_id;
   
   IF user_profile_id IS NULL THEN
     RETURN ARRAY[]::TEXT[];
@@ -559,7 +568,7 @@ BEGIN
   -- Get user's role and org
   SELECT role_id, org_id INTO user_role_id, user_org_id 
   FROM system.users 
-  WHERE user_id = checking_user_id;
+  WHERE id = checking_user_id;
   
   IF user_role_id IS NULL THEN
     RETURN FALSE;
@@ -705,7 +714,7 @@ ALTER TABLE system.list_views ENABLE ROW LEVEL SECURITY;
 -- Organizations: Users can only see their own org
 CREATE POLICY "Users see own organization" ON system.organizations
   FOR SELECT
-  USING (org_id = system.get_user_org());
+  USING (id = system.get_user_org());
 
 -- Users: Users can see users in their org
 CREATE POLICY "Users see org users" ON system.users

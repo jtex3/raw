@@ -17,19 +17,19 @@ BEGIN
   FOR i IN 1 .. array_upper(org_names, 1) LOOP
     
     -- 1. Create Organization
-    INSERT INTO  system.organizations (org_name, subdomain, is_active)
-    VALUES (org_names[i], lower(replace(org_names[i], '-', '')), true)
-    RETURNING org_id INTO v_org_id;
+    INSERT INTO  system.organizations (id, name, org_name, subdomain, is_active)
+    VALUES (gen_random_uuid(), org_names[i], org_names[i], lower(replace(org_names[i], '-', '')), true)
+    RETURNING id INTO v_org_id;
 
     -- 2. Create Organization Administrator Profile (Unique per Org)
-    INSERT INTO  system.profiles (org_id, profile_name, description)
-    VALUES (v_org_id, 'Organization Administrator', 'Full access within the organization')
-    RETURNING profile_id INTO v_profile_id;
+    INSERT INTO  system.profiles (id, name, org_id, profile_name, description)
+    VALUES (gen_random_uuid(), org_names[i] || ' Admin Profile', v_org_id, 'Organization Administrator', 'Full access within organization')
+    RETURNING id INTO v_profile_id;
 
     -- 3. Create Organization Administrator Role (Unique per Org)
-    INSERT INTO  system.roles (org_id, role_name, parent_role_id, level)
-    VALUES (v_org_id, 'Organization Administrator', NULL, 0)
-    RETURNING role_id INTO v_role_id;
+    INSERT INTO  system.roles (id, name, org_id, role_name, parent_role_id, level)
+    VALUES (gen_random_uuid(), org_names[i] || ' Admin Role', v_org_id, 'Organization Administrator', NULL, 0)
+    RETURNING id INTO v_role_id;
 
     -- 4. Create Auth User (Internal Flow)
     v_auth_user_id := gen_random_uuid();
@@ -59,8 +59,8 @@ BEGIN
     );
 
     -- 5. Link to Public.Users
-    INSERT INTO  system.users (user_id, org_id, profile_id, role_id, email, name, is_active)
-    VALUES (v_auth_user_id, v_org_id, v_profile_id, v_role_id, admin_emails[i], org_names[i] || ' Admin', true);
+    INSERT INTO  system.users (id, name, org_id, profile_id, role_id, email, is_active)
+    VALUES (v_auth_user_id, org_names[i] || ' Admin User', v_org_id, v_profile_id, v_role_id, admin_emails[i], true);
 
     RAISE NOTICE 'Created Organization and Admin for: %', org_names[i];
 
