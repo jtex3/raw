@@ -284,6 +284,7 @@ export default function EditRecordPage() {
             columnName={columnName}
             onValueChange={(newValue) => {
               setRecord(prev => ({ ...prev, [columnName]: newValue }))
+              setFormData(prev => ({ ...prev, [columnName]: newValue }))
             }}
           />
         </div>
