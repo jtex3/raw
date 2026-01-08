@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Loader2, ArrowLeft, Table, Rows, Edit, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { Checkbox } from '@/components/ui/checkbox'
+import { SmartForeignKeyReference } from '@/components/ui/smart-foreign-key-reference'
 import {
   Table as ShadcnTable,
   TableBody,
@@ -81,6 +82,17 @@ export default function TableRecordsPage() {
           checked={Boolean(value)}
           disabled
           className="pointer-events-none"
+        />
+      )
+    }
+    
+    // Special handling for org_id field - show organization name instead of UUID
+    if (columnName === 'org_id' && column?.data_type === 'uuid') {
+      return (
+        <SmartForeignKeyReference
+          value={value}
+          referenceTable="system.organizations"
+          mode="view"
         />
       )
     }
