@@ -276,6 +276,7 @@ export default function EditRecordPage() {
       }
 
       return (
+<<<<<<< HEAD
         <div className="space-y-2">
           <Label htmlFor={columnName}>{columnName}</Label>
           <InlineForeignKeyEditor
@@ -288,13 +289,23 @@ export default function EditRecordPage() {
             }}
           />
         </div>
+=======
+        <InlineForeignKeyEditor
+          value={value}
+          referenceTable={getReferenceTable(columnName)}
+          columnName={columnName}
+          onValueChange={(newValue) => {
+            setRecord(prev => ({ ...prev, [columnName]: newValue }))
+            setFormData(prev => ({ ...prev, [columnName]: newValue }))
+          }}
+        />
+>>>>>>> 3dcb13f (foreign-key-edit-v2-working)
       )
     }
 
     // Regular field
     return (
       <div className="space-y-2">
-        <Label htmlFor={columnName}>{columnName}</Label>
         {column?.data_type === 'boolean' ? (
           <Input
             type="checkbox"
