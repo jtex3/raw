@@ -14,7 +14,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, ArrowLeft, Table, Rows, Edit, Plus } from 'lucide-react'
+import { Loader2, ArrowLeft, Rows, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SmartForeignKeyReference } from '@/components/ui/smart-foreign-key-reference'
@@ -116,11 +116,24 @@ export default function TableRecordsPage() {
   }
 
   // Helper function to render cell content based on data type
-  const renderCellContent = (value: any, columnName: string) => {
+  const renderCellContent = (value: any, columnName: string, row?: any) => {
     if (value === null) {
       return <span className="text-gray-400 italic">NULL</span>
     }
-    
+
+    // Make the 'name' field a clickable link to view the record
+    if (columnName === 'name' && row) {
+      const recordId = getRecordId(row, columnInfo)
+      return (
+        <Link
+          href={`/objects/${tableName}/records/${recordId}/view`}
+          className="text-teal-600 hover:text-teal-700 hover:underline font-medium"
+        >
+          {String(value)}
+        </Link>
+      )
+    }
+
     // Check if this column is a boolean type
     const column = columnInfo.find(c => c.column_name === columnName)
     if (column?.data_type === 'boolean') {
@@ -236,9 +249,6 @@ export default function TableRecordsPage() {
                       {col}
                     </TableHead>
                   ))}
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -246,18 +256,9 @@ export default function TableRecordsPage() {
                   <TableRow key={idx} className="hover:bg-gray-50">
                     {columns.map((col) => (
                       <TableCell key={col} className="px-4 py-4 whitespace-nowrap text-sm">
-                        {renderCellContent(row[col], col)}
+                        {renderCellContent(row[col], col, row)}
                       </TableCell>
                     ))}
-                    <TableCell className="px-4 py-4 whitespace-nowrap text-sm">
-                      <Link
-                        href={`/objects/${tableName}/records/${getRecordId(row, columnInfo)}/edit`}
-                        className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 border border-teal-600 rounded transition-colors"
-                      >
-                        <Edit className="h-3 w-3 mr-1" />
-                        Edit
-                      </Link>
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
