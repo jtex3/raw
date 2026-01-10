@@ -1,5 +1,14 @@
+/**
+  * @fileoverview Input UI Component
+  *
+  * Provides a styled HTML input element with consistent Tailwind styling.
+  * Used across forms and editors throughout the application.
+  *
+  * This file is part of the shared UI primitives layer.
+  */
+ 
 import * as React from "react"
-
+ 
 import { cn } from "@/lib/utils"
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {

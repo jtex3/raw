@@ -1,3 +1,14 @@
+/**
+  * @fileoverview Schema Discovery API Route
+  *
+  * Returns a list of tables in the Supabase `system` schema along with record counts.
+  * This endpoint is used by the Objects UI to dynamically discover available objects.
+  *
+  * Notes:
+  * - If `SUPABASE_SERVICE_ROLE_KEY` is present, counts are performed with an admin client.
+  * - Otherwise, falls back to the authenticated server client.
+  */
+ 
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 

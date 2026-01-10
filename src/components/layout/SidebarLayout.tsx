@@ -1,3 +1,14 @@
+/**
+  * @fileoverview Sidebar Layout Component
+  *
+  * Provides the main application shell layout with:
+  * - Collapsible left sidebar navigation
+  * - Primary content area wrapper
+  * - Logout handling via Supabase Auth
+  *
+  * Used by `src/app/layout.tsx` to wrap all pages.
+  */
+
 "use client"
 
 import { useState }     from 'react'

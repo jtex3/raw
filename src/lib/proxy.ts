@@ -1,3 +1,13 @@
+/**
+  * @fileoverview Session Update Proxy
+  *
+  * Provides a helper to create a Supabase server client in middleware-like contexts
+  * and keep auth cookies in sync.
+  *
+  * This mirrors the logic in `src/middleware.ts` and can be used when you need
+  * to update the session in custom request handling flows.
+  */
+
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 

@@ -1,3 +1,22 @@
+/**
+ * @fileoverview Main Dashboard Page Component
+ * 
+ * This is the primary dashboard page that users see after authentication.
+ * It provides:
+ * - User authentication state management
+ * - Welcome dashboard with user information
+ * - System status indicators
+ * - Quick action buttons for common tasks
+ * - Automatic redirection to login if not authenticated
+ * 
+ * The component uses Supabase client-side authentication and implements
+ * real-time auth state monitoring with automatic redirects.
+ * 
+ * @author Raw System Team
+ * @version 1.0.0
+ * @since 2026-01-04
+ */
+
 "use client"
 
 import { useState, useEffect } from 'react'
@@ -6,6 +25,15 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+/**
+ * Main dashboard page component
+ * 
+ * Serves as the primary landing page after user authentication. Displays user information,
+ * system status, and quick action buttons. Implements automatic authentication checking
+ * with redirects to login page for unauthenticated users.
+ * 
+ * @returns {JSX.Element} Dashboard page with user info, status cards, and quick actions
+ */
 export default function HomePage() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)

@@ -1,3 +1,14 @@
+/**
+  * @fileoverview Inline Foreign Key Editor
+  *
+  * Provides an inline dropdown/search UI for selecting a foreign-key UUID.
+  * Used in the record editor page to choose related records.
+  *
+  * Implementation notes:
+  * - Fetches the current display value by ID
+  * - Performs `ilike` search against a best-guess display field
+  */
+
 "use client"
 
 import { useState, useEffect } from 'react'
@@ -70,7 +81,8 @@ export default function InlineForeignKeyEditor({
             console.error('Error fetching display value:', error)
             setCurrentDisplayValue(value)
           } else {
-            setCurrentDisplayValue(data?.[displayField] || value)
+            const row = data as unknown as Record<string, unknown> | null
+            setCurrentDisplayValue(String(row?.[displayField] ?? value))
           }
         } catch (error) {
           console.error('Error fetching display value:', error)

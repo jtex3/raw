@@ -1,3 +1,14 @@
+/**
+  * @fileoverview Badge UI Component
+  *
+  * Provides a small Badge component for status/labels across the UI.
+  * Features:
+  * - Variant-based styling via class-variance-authority
+  * - Tailwind class merging via `cn`
+  *
+  * This file is part of the shared UI primitives layer.
+  */
+
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 

@@ -1,3 +1,12 @@
+/**
+  * @fileoverview Card UI Components
+  *
+  * Provides composable Card primitives (Card, CardHeader, CardContent, etc.) used
+  * to build consistent panels across the application.
+  *
+  * This file is part of the shared UI primitives layer.
+  */
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"

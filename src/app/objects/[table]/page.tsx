@@ -1,3 +1,14 @@
+/**
+  * @fileoverview Table Details Page
+  *
+  * Shows column metadata for a selected table in the Supabase `system` schema.
+  * Uses the `get_schema_system_tables_columns` RPC to fetch and display:
+  * - Column name
+  * - Data type
+  * - Nullability
+  * - Default value
+  */
+
 "use client"
 
 import { useState, useEffect } from 'react'

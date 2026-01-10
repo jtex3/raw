@@ -1,3 +1,15 @@
+/**
+  * @fileoverview Button UI Component
+  *
+  * Provides the primary Button component used throughout the application.
+  * Features:
+  * - Variant-based styling via class-variance-authority
+  * - Optional Radix Slot support via `asChild`
+  * - Tailwind class merging via `cn`
+  *
+  * This file is part of the shared UI primitives layer.
+  */
+ 
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"

@@ -1,3 +1,13 @@
+/**
+  * @fileoverview Login Page
+  *
+  * Provides the sign-in experience for the Raw System application.
+  * - Collects email/password
+  * - Authenticates via Supabase Auth
+  * - Redirects to the dashboard on success
+  * - Shows basic loading and error states
+  */
+ 
 "use client"
 
 import { useState } from 'react'
@@ -8,6 +18,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+/**
+ * Login page component
+ * 
+ * Provides the authentication interface for users to sign in to the Raw System.
+ * Handles email/password authentication via Supabase Auth with proper error
+ * handling and loading states. Redirects to dashboard upon successful login.
+ * 
+ * @returns {JSX.Element} Login form with email/password inputs and submit handling
+ */
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -16,6 +35,15 @@ export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  /**
+   * Handles the login form submission
+   * 
+   * Authenticates the user with Supabase Auth using email/password credentials.
+   * Updates loading and error states appropriately, and redirects to dashboard
+   * on successful authentication.
+   * 
+   * @param {React.FormEvent} e - Form submission event
+   */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)

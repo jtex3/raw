@@ -1,3 +1,15 @@
+/**
+  * @fileoverview Record Editor Page
+  *
+  * Provides create/edit functionality for a single record in a selected table
+  * within the Supabase `system` schema.
+  *
+  * Behavior:
+  * - If `id` is `new`, renders an empty form based on discovered columns
+  * - Otherwise loads the existing record and allows updates
+  * - Renders booleans as checkboxes and UUID foreign keys with an inline selector
+  */
+
 "use client"
 
 import { useState, useEffect } from 'react'
@@ -117,7 +129,8 @@ export default function EditRecordPage() {
       }
 
       // Fetch the specific record
-      const { data, error: recError } = await supabase
+      const supabaseAny = supabase as any
+      const { data, error: recError } = await supabaseAny
         .schema('system')
         .from(tableName)
         .select('*')

@@ -1,3 +1,22 @@
+/**
+ * @fileoverview Next.js Middleware for Authentication and Route Protection
+ * 
+ * This middleware handles authentication state management and route protection
+ * for the Raw System application. It provides:
+ * - Supabase server-side client initialization
+ * - Automatic user authentication verification
+ * - Route protection for authenticated and unauthenticated users
+ * - Cookie management for session persistence
+ * - Redirect logic for login/dashboard flows
+ * 
+ * The middleware runs on all routes except static assets and API routes,
+ * ensuring consistent authentication behavior across the application.
+ * 
+ * @author Raw System Team
+ * @version 1.0.0
+ * @since 2026-01-04
+ */
+
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 

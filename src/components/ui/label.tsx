@@ -1,3 +1,12 @@
+/**
+  * @fileoverview Label UI Component
+  *
+  * Provides a styled label component built on Radix UI Label primitive.
+  * Used to pair labels with inputs consistently across forms.
+  *
+  * This file is part of the shared UI primitives layer.
+  */
+ 
 "use client"
 
 import * as React from "react"

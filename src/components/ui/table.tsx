@@ -1,3 +1,12 @@
+/**
+  * @fileoverview Table UI Components
+  *
+  * Provides composable table primitives (Table, TableHead, TableRow, etc.).
+  * Used to render data tables throughout the application (e.g. object record lists).
+  *
+  * This file is part of the shared UI primitives layer.
+  */
+
 "use client"
 
 import * as React from "react"

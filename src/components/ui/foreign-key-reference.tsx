@@ -1,3 +1,22 @@
+/**
+ * @fileoverview Foreign Key Reference Display Component
+ * 
+ * This component provides a reusable UI element for displaying and selecting
+ * foreign key references in the Raw System. It supports:
+ * - Display mode for showing resolved foreign key values
+ * - Edit mode with search functionality for selecting references
+ * - Automatic data fetching and caching
+ * - Error handling and loading states
+ * - Integration with Supabase for real-time data
+ * 
+ * Used throughout the application for consistent foreign key UI patterns
+ * in forms, tables, and detail views.
+ * 
+ * @author Raw System Team
+ * @version 1.0.0
+ * @since 2026-01-04
+ */
+
 "use client"
 
 import { useState, useEffect } from 'react'

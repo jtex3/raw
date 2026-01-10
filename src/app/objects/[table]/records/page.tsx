@@ -1,3 +1,14 @@
+/**
+  * @fileoverview Table Records Listing Page
+  *
+  * Displays up to 1000 records for a selected table in the Supabase `system` schema.
+  * Features:
+  * - Dynamic column discovery via `get_schema_system_tables_columns`
+  * - Automatic rendering of booleans and foreign-key UUID references
+  * - Links to edit individual records
+  * - Shortcut to create a new record
+  */
+
 "use client"
 
 import { useState, useEffect } from 'react'

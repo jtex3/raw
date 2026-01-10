@@ -1,3 +1,13 @@
+/**
+  * @fileoverview Foreign Key Reference Examples
+  *
+  * Demonstration component showcasing how to use:
+  * - `ForeignKeyReference` (manual configuration)
+  * - `SmartForeignKeyReference` (config-driven)
+  *
+  * This is intended for development/testing and as a usage reference.
+  */
+
 "use client"
 
 import { useState } from 'react'

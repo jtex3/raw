@@ -1,3 +1,12 @@
+/**
+  * @fileoverview Checkbox UI Component
+  *
+  * Provides a styled checkbox component built on Radix UI Checkbox primitives.
+  * Used across the application for boolean fields (including record viewers/editors).
+  *
+  * This file is part of the shared UI primitives layer.
+  */
+
 import * as React from "react"
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
 import { Check } from "lucide-react"

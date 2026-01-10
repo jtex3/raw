@@ -1,5 +1,28 @@
+/**
+ * @fileoverview Foreign Key Configuration Registry
+ * 
+ * This module manages the configuration for foreign key relationships in the Raw System.
+ * It provides:
+ * - Centralized foreign key mapping configuration
+ * - Display field specifications for each table
+ * - Reference table and field definitions
+ * - Helper functions for foreign key management
+ * 
+ * The configuration supports the multi-tenant Salesforce-like architecture with
+ * proper relationship handling between organizations, users, roles, profiles,
+ * permissions, and other system entities.
+ * 
+ * @author Raw System Team
+ * @version 1.0.0
+ * @since 2026-01-04
+ */
+
 import { ForeignKeyConfig } from '@/types/foreign-key'
 
+/**
+ * Registry of foreign key configurations for all system tables
+ * Maps table names to their foreign key display configurations
+ */
 export const foreignKeyConfigs: Record<string, ForeignKeyConfig> = {
   'system.organizations': {
     referenceTable: 'system.organizations',

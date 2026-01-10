@@ -1,3 +1,13 @@
+/**
+  * @fileoverview Objects (Tables) Listing Page
+  *
+  * Lists all tables ("objects") available in the Supabase `system` schema.
+  * This page:
+  * - Calls the `/api/schema` endpoint to discover tables
+  * - Displays table metadata and record counts
+  * - Links to table details and record browsing pages
+  */
+
 "use client"
 
 import { useState, useEffect } from 'react'
