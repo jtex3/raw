@@ -1,8 +1,11 @@
 /**
   * @fileoverview Schema Discovery API Route
   *
-  * Returns a list of tables in the Supabase `system` schema along with record counts.
+  * Returns a list of tables in the specified schema along with record counts.
   * This endpoint is used by the Objects UI to dynamically discover available objects.
+  *
+  * Query Parameters:
+  * - schema: 'system' | 'public' (defaults to 'system')
   *
   * Notes:
   * - Tables are filtered based on user's profile_object_permissions.
@@ -11,7 +14,7 @@
   */
 
 import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 interface AccessibleObject {
   object_name: string
@@ -21,13 +24,25 @@ interface AccessibleObject {
   can_delete: boolean
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const searchParams = request.nextUrl.searchParams
+    const schema = searchParams.get('schema') || 'system'
+
+    // Validate schema parameter
+    if (schema !== 'system' && schema !== 'public') {
+      return NextResponse.json(
+        { error: 'Invalid schema. Must be "system" or "public".' },
+        { status: 400 }
+      )
+    }
+
     // Use authenticated client to respect user permissions
     const supabase = await createClient()
 
     // Get objects accessible to the current user based on their profile permissions
-    const { data: accessibleObjects, error: accessError } = await supabase.schema('system')
+    // Each schema has its own get_accessible_objects() function
+    const { data: accessibleObjects, error: accessError } = await supabase.schema(schema)
       .rpc('get_accessible_objects')
 
     if (accessError) {

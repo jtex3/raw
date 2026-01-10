@@ -27,6 +27,7 @@ interface ColumnInfo {
 
 export default function ViewRecordPage() {
   const params = useParams()
+  const schema = params.schema as string
   const tableName = params.table as string
   const recordId = params.id as string
   const [record, setRecord] = useState<any>({})
@@ -70,7 +71,7 @@ export default function ViewRecordPage() {
             if (tableMap[baseName]) {
               allForeignKeys.push({
                 column_name: col.column_name,
-                foreign_table_name: `system.${tableMap[baseName]}`,
+                foreign_table_name: `${schema}.${tableMap[baseName]}`,
                 foreign_column_name: 'id'
               })
             }
@@ -88,8 +89,8 @@ export default function ViewRecordPage() {
 
       // Get column information
       const { data: colData, error: colError } = await supabase
-        .schema('system')
-        .rpc('get_schema_system_tables_columns', { target_table: tableName })
+        .schema(schema)
+        .rpc('get_schema_tables_columns', { target_table: tableName })
 
       if (colError) {
         throw new Error(colError.message)
@@ -107,7 +108,7 @@ export default function ViewRecordPage() {
       // Fetch the specific record
       const supabaseAny = supabase as any
       const { data, error: recError } = await supabaseAny
-        .schema('system')
+        .schema(schema)
         .from(tableName)
         .select('*')
         .eq(pkColumn.column_name, recordId)
@@ -211,7 +212,7 @@ export default function ViewRecordPage() {
       {/* Header */}
       <div className="mb-6">
         <Link
-          href={`/objects/${tableName}/records`}
+          href={`/objects/${schema}/${tableName}/records`}
           className="inline-flex items-center text-teal-600 hover:text-teal-700 mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
@@ -252,7 +253,7 @@ export default function ViewRecordPage() {
       {/* Floating Edit button */}
       <div className="fixed bottom-6 right-6">
         <Link
-          href={`/objects/${tableName}/records/${recordId}/edit`}
+          href={`/objects/${schema}/${tableName}/records/${recordId}/edit`}
           className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 border border-teal-600 rounded transition-colors shadow-lg"
         >
           <Edit className="h-3 w-3 mr-1" />

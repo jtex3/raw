@@ -37,7 +37,8 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
 
   const menuItems = [
     { icon: Home, label: 'Dashboard', href: '/' },
-    { icon: Database, label: 'Objects', href: '/objects' },
+    { icon: Database, label: 'System Objects', href: '/objects/system' },
+    { icon: Database, label: 'Business Objects', href: '/objects/public' },
   ]
 
   return (

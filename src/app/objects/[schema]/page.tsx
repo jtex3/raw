@@ -1,9 +1,9 @@
 /**
   * @fileoverview Objects (Tables) Listing Page
   *
-  * Lists all tables ("objects") available in the Supabase `system` schema.
+  * Lists all tables ("objects") available in the specified schema.
   * This page:
-  * - Calls the `/api/schema` endpoint to discover tables
+  * - Calls the `/api/schema?schema={schema}` endpoint to discover tables
   * - Displays table metadata and record counts
   * - Links to table details and record browsing pages
   */
@@ -11,7 +11,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useParams } from 'next/navigation'
 import { Loader2, Database, Table } from 'lucide-react'
 import Link from 'next/link'
 
@@ -21,33 +21,36 @@ interface SchemaObject {
   record_count?: number
 }
 
-export default function ObjectsPage() {
+export default function SchemaObjectsPage() {
+  const params = useParams()
+  const schema = params.schema as string
   const [objects, setObjects] = useState<SchemaObject[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClient()
 
   useEffect(() => {
-    fetchSchemaObjects()
-  }, [])
+    if (schema) {
+      fetchSchemaObjects()
+    }
+  }, [schema])
 
   const fetchSchemaObjects = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/schema')
-      
+      const response = await fetch(`/api/schema?schema=${schema}`)
+
       if (!response.ok) {
         throw new Error('Failed to fetch schema objects')
       }
-      
+
       const data = await response.json()
-      
+
       if (!data.tables) {
         throw new Error('No tables data returned from API')
       }
-      
+
       // Sort alphabetically by table name
-      const sortedObjects = data.tables.sort((a: SchemaObject, b: SchemaObject) => 
+      const sortedObjects = data.tables.sort((a: SchemaObject, b: SchemaObject) =>
         a.table_name.localeCompare(b.table_name)
       )
       setObjects(sortedObjects)
@@ -57,6 +60,11 @@ export default function ObjectsPage() {
       setLoading(false)
     }
   }
+
+  const schemaLabel = schema === 'system' ? 'System Objects' : 'Business Objects'
+  const schemaDescription = schema === 'system'
+    ? 'All tables and objects in your Supabase system schema'
+    : 'All tables and objects in your Supabase public schema'
 
   if (loading) {
     return (
@@ -89,10 +97,10 @@ export default function ObjectsPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 flex items-center">
           <Database className="mr-3 h-8 w-8 text-teal-600" />
-          Schema Objects
+          {schemaLabel}
         </h1>
         <p className="text-gray-600 mt-2">
-          All tables and objects in your Supabase public schema
+          {schemaDescription}
         </p>
       </div>
 
@@ -115,7 +123,7 @@ export default function ObjectsPage() {
                       <>
                         {' • '}
                         <Link
-                          href={`/objects/${object.table_name}/records`}
+                          href={`/objects/${schema}/${object.table_name}/records`}
                           className="text-teal-600 hover:text-teal-700 underline"
                         >
                           {object.record_count} records
@@ -126,7 +134,7 @@ export default function ObjectsPage() {
                 </div>
               </div>
               <Link
-                href={`/objects/${object.table_name}`}
+                href={`/objects/${schema}/${object.table_name}`}
                 className="text-teal-600 hover:text-teal-700 text-sm font-medium"
               >
                 View Details
@@ -141,7 +149,7 @@ export default function ObjectsPage() {
           <Database className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No objects found</h3>
           <p className="mt-1 text-sm text-gray-500">
-            No tables were found in your public schema.
+            No tables were found in the {schema} schema.
           </p>
         </div>
       )}

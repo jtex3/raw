@@ -32,6 +32,7 @@ interface ColumnInfo {
 export default function EditRecordPage() {
   const params = useParams()
   const router = useRouter()
+  const schema = params.schema as string
   const tableName = params.table as string
   const recordId = params.id as string
   const [record, setRecord] = useState<any>({})
@@ -62,7 +63,7 @@ export default function EditRecordPage() {
       const fetchForeignKeys = async () => {
         try {
           const { data: fkData, error: fkError } = await supabase
-            .schema('system')
+            .schema(schema)
             .rpc('get_table_foreign_keys', { table_name: tableName })
 
           if (fkError) {
@@ -88,8 +89,8 @@ export default function EditRecordPage() {
 
       // Get column information only
       const { data: colData, error: colError } = await supabase
-        .schema('system')
-        .rpc('get_schema_system_tables_columns', { target_table: tableName })
+        .schema(schema)
+        .rpc('get_schema_tables_columns', { target_table: tableName })
 
       if (colError) {
         throw new Error(colError.message)
@@ -112,8 +113,8 @@ export default function EditRecordPage() {
 
       // Get column information
       const { data: colData, error: colError } = await supabase
-        .schema('system')
-        .rpc('get_schema_system_tables_columns', { target_table: tableName })
+        .schema(schema)
+        .rpc('get_schema_tables_columns', { target_table: tableName })
 
       if (colError) {
         throw new Error(colError.message)
@@ -131,7 +132,7 @@ export default function EditRecordPage() {
       // Fetch the specific record
       const supabaseAny = supabase as any
       const { data, error: recError } = await supabaseAny
-        .schema('system')
+        .schema(schema)
         .from(tableName)
         .select('*')
         .eq(pkColumn.column_name, recordId)
@@ -171,7 +172,7 @@ export default function EditRecordPage() {
       if (recordId === 'new') {
         // Insert new record
         const { error } = await supabase
-          .schema('system')
+          .schema(schema)
           .from(tableName)
           .insert(formData)
 
@@ -181,7 +182,7 @@ export default function EditRecordPage() {
       } else {
         // Update existing record
         const { error } = await supabase
-          .schema('system')
+          .schema(schema)
           .from(tableName)
           .update(formData)
           .eq(pkColumn.column_name, recordId)
@@ -192,7 +193,7 @@ export default function EditRecordPage() {
       }
 
       // Redirect back to records page
-      router.push(`/objects/${tableName}/records`)
+      router.push(`/objects/${schema}/${tableName}/records`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save record')
       setSaving(false)
@@ -312,16 +313,16 @@ export default function EditRecordPage() {
       // Map column names to proper table names
       const getReferenceTable = (colName: string) => {
         const tableMap: { [key: string]: string } = {
-          'org_id': 'system.organizations',
-          'profile_id': 'system.profiles',
-          'role_id': 'system.roles',
-          'user_id': 'system.users',
-          'owner_id': 'system.users',
-          'createdby_id': 'system.users',
-          'lastmodifiedby_id': 'system.users',
-          'permission_id': 'system.permissions'
+          'org_id': `${schema}.organizations`,
+          'profile_id': `${schema}.profiles`,
+          'role_id': `${schema}.roles`,
+          'user_id': `${schema}.users`,
+          'owner_id': `${schema}.users`,
+          'createdby_id': `${schema}.users`,
+          'lastmodifiedby_id': `${schema}.users`,
+          'permission_id': `${schema}.permissions`
         }
-        return tableMap[colName] || `system.${colName.replace('_id', 's')}`
+        return tableMap[colName] || `${schema}.${colName.replace('_id', 's')}`
       }
 
       return (
@@ -432,7 +433,7 @@ export default function EditRecordPage() {
       {/* Header */}
       <div className="mb-6">
         <Link
-          href={`/objects/${tableName}/records`}
+          href={`/objects/${schema}/${tableName}/records`}
           className="inline-flex items-center text-teal-600 hover:text-teal-700 mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
@@ -476,7 +477,7 @@ export default function EditRecordPage() {
       {/* Floating buttons */}
       <div className="fixed bottom-6 right-6 flex space-x-2">
         <Link
-          href={`/objects/${tableName}/records`}
+          href={`/objects/${schema}/${tableName}/records`}
           className="inline-flex items-center px-3 py-1 text-xs font-medium text-teal-600 bg-white hover:bg-gray-50 border border-teal-600 rounded transition-colors shadow-lg"
         >
           <X className="h-3 w-3 mr-1" />

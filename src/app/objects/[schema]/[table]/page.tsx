@@ -12,7 +12,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, ArrowLeft, Table, Columns } from 'lucide-react'
 import Link from 'next/link'
@@ -26,7 +26,7 @@ interface TableColumn {
 
 export default function TableDetailsPage() {
   const params = useParams()
-  const router = useRouter()
+  const schema = params.schema as string
   const tableName = params.table as string
   const [columns, setColumns] = useState<TableColumn[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,8 +43,8 @@ export default function TableDetailsPage() {
     try {
       setLoading(true)
       const { data, error: rpcError } = await supabase
-        .schema('system')
-        .rpc('get_schema_system_tables_columns', { target_table: tableName })
+        .schema(schema)
+        .rpc('get_schema_tables_columns', { target_table: tableName })
 
       if (rpcError) {
         throw new Error(rpcError.message)
@@ -95,7 +95,7 @@ export default function TableDetailsPage() {
       {/* Header with back navigation */}
       <div className="mb-6">
         <Link
-          href="/objects"
+          href={`/objects/${schema}`}
           className="inline-flex items-center text-teal-600 hover:text-teal-700 mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
@@ -106,7 +106,7 @@ export default function TableDetailsPage() {
           {tableName}
         </h1>
         <p className="text-gray-600 mt-2">
-          Column definitions for this table in the system schema
+          Column definitions for this table in the {schema} schema
         </p>
       </div>
 

@@ -29,6 +29,7 @@ import {
 
 export default function TableRecordsPage() {
   const params = useParams()
+  const schema = params.schema as string
   const tableName = params.table as string
   const [records, setRecords] = useState<any[]>([])
   const [columns, setColumns] = useState<string[]>([])
@@ -50,8 +51,8 @@ export default function TableRecordsPage() {
 
       // First, get column names to display as headers
       const { data: colData, error: colError } = await supabase
-        .schema('system')
-        .rpc('get_schema_system_tables_columns', { target_table: tableName })
+        .schema(schema)
+        .rpc('get_schema_tables_columns', { target_table: tableName })
 
       if (colError) {
         throw new Error(colError.message)
@@ -86,7 +87,7 @@ export default function TableRecordsPage() {
             if (tableMap[baseName]) {
               allForeignKeys.push({
                 column_name: col.column_name,
-                foreign_table_name: `system.${tableMap[baseName]}`,
+                foreign_table_name: `${schema}.${tableMap[baseName]}`,
                 foreign_column_name: 'id'
               })
             }
@@ -98,7 +99,7 @@ export default function TableRecordsPage() {
 
       // Then fetch all records
       const { data, error: recError } = await supabase
-        .schema('system')
+        .schema(schema)
         .from(tableName)
         .select('*')
         .limit(1000) // reasonable limit for UI
@@ -126,7 +127,7 @@ export default function TableRecordsPage() {
       const recordId = getRecordId(row, columnInfo)
       return (
         <Link
-          href={`/objects/${tableName}/records/${recordId}/view`}
+          href={`/objects/${schema}/${tableName}/records/${recordId}/view`}
           className="text-teal-600 hover:text-teal-700 hover:underline font-medium"
         >
           {String(value)}
@@ -211,7 +212,7 @@ export default function TableRecordsPage() {
     <div className="p-6 relative">
       {/* Floating Add Button */}
       <Link
-        href={`/objects/${tableName}/records/new/edit`}
+        href={`/objects/${schema}/${tableName}/records/new/edit`}
         className="absolute top-18 right-6 inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 border border-teal-600 rounded transition-colors shadow-lg"
         title="Add New Record"
       >
@@ -222,7 +223,7 @@ export default function TableRecordsPage() {
       {/* Header with back navigation */}
       <div className="mb-6">
         <Link
-          href="/objects"
+          href={`/objects/${schema}`}
           className="inline-flex items-center text-teal-600 hover:text-teal-700 mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
