@@ -102,11 +102,16 @@ export interface ProfileFieldPermission {
 
 /**
  * Database table metadata from schema discovery
+ * Includes permission flags based on user's profile_object_permissions
  */
 export interface SchemaTable {
   table_name: string
   table_type: string
   record_count?: number
+  can_create?: boolean
+  can_read?: boolean
+  can_update?: boolean
+  can_delete?: boolean
 }
 
 /**
