@@ -14,16 +14,11 @@
 import { useState }     from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button }       from '@/components/ui/button'
-import { 
-  Home, 
-  Settings, 
-  User, 
-  LogOut, 
-  Menu, 
+import {
+  Home,
+  LogOut,
+  Menu,
   X,
-  FileText,
-  BarChart3,
-  Shield,
   Database
 } from 'lucide-react'
 
@@ -42,12 +37,7 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
 
   const menuItems = [
     { icon: Home, label: 'Dashboard', href: '/' },
-    { icon: User, label: 'Profile', href: '/profile' },
-    { icon: FileText, label: 'Documents', href: '/documents' },
-    { icon: BarChart3, label: 'Analytics', href: '/analytics' },
     { icon: Database, label: 'Objects', href: '/objects' },
-    { icon: Shield, label: 'Security', href: '/security' },
-    { icon: Settings, label: 'Settings', href: '/settings' },
   ]
 
   return (
