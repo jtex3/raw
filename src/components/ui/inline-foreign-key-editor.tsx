@@ -11,7 +11,7 @@
 
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Search, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -34,6 +34,36 @@ export default function InlineForeignKeyEditor({
   const [loading, setLoading] = useState(false)
   const [currentDisplayValue, setCurrentDisplayValue] = useState<string>('')
   const supabase = createClient()
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Handle click outside and Escape key to close dropdown
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+        setSearchQuery('')
+        setSearchResults([])
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false)
+        setSearchQuery('')
+        setSearchResults([])
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen])
 
   // Determine display field based on table name
   const getDisplayField = (tableName: string) => {
@@ -144,7 +174,7 @@ export default function InlineForeignKeyEditor({
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       {/* Current value display / trigger */}
       <div
         className="w-full px-3 py-2 border border-gray-300 rounded-md cursor-pointer flex items-center justify-between bg-white"
