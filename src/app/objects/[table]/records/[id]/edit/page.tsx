@@ -207,13 +207,19 @@ export default function EditRecordPage() {
     )) {
       return false
     }
-    
+
     // Don't allow editing primary key UUID fields (identified by being the UUID used to fetch the record)
     const pkColumn = columns.find(c => c.data_type === 'uuid')
     if (column.data_type === 'uuid' && pkColumn && column.column_name === pkColumn.column_name) {
       return false
     }
-    
+
+    // Don't allow editing audit fields (set by triggers)
+    if (column.column_name === 'createdby_id' || column.column_name === 'lastmodifiedby_id' ||
+        column.column_name === 'created_at' || column.column_name === 'updated_at') {
+      return false
+    }
+
     return true
   }
 
@@ -279,12 +285,28 @@ export default function EditRecordPage() {
 
   const renderField = (columnName: string, value: any) => {
     const column = columns.find(c => c.column_name === columnName)
-    
+
     // Safety check - if column is undefined, don't render
     if (!column) {
       return <div className="text-red-500">Column {columnName} not found</div>
     }
-    
+
+    // Check if field is read-only (audit fields like created_at, updated_at, createdby_id, lastmodifiedby_id)
+    if (!isEditable(column)) {
+      return (
+        <div className="space-y-1">
+          <input
+            type="text"
+            value={value || ''}
+            disabled
+            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 cursor-not-allowed"
+            readOnly
+          />
+          <p className="text-xs text-gray-500">This field is set automatically by the system</p>
+        </div>
+      )
+    }
+
     // If it's a UUID field (except primary key), use the inline editor
     if (column?.data_type === 'uuid' && columnName !== 'id') {
       // Map column names to proper table names
@@ -294,6 +316,9 @@ export default function EditRecordPage() {
           'profile_id': 'system.profiles',
           'role_id': 'system.roles',
           'user_id': 'system.users',
+          'owner_id': 'system.users',
+          'createdby_id': 'system.users',
+          'lastmodifiedby_id': 'system.users',
           'permission_id': 'system.permissions'
         }
         return tableMap[colName] || `system.${colName.replace('_id', 's')}`

@@ -16,17 +16,17 @@ BEGIN
 
   FOR i IN 1 .. array_upper(org_names, 1) LOOP
     
-    -- 1. Create Organization
+    -- 1. Create Organization (audit fields set after user created)
     INSERT INTO  system.organizations (id, name, org_name, subdomain, is_active)
     VALUES (gen_random_uuid(), org_names[i], org_names[i], lower(replace(org_names[i], '-', '')), true)
     RETURNING id INTO v_org_id;
 
-    -- 2. Create Organization Administrator Profile (Unique per Org)
+    -- 2. Create Organization Administrator Profile (Unique per Org, audit fields set after user created)
     INSERT INTO  system.profiles (id, name, org_id, profile_name, description)
     VALUES (gen_random_uuid(), org_names[i] || ' Admin Profile', v_org_id, 'Organization Administrator', 'Full access within organization')
     RETURNING id INTO v_profile_id;
 
-    -- 3. Create Organization Administrator Role (Unique per Org)
+    -- 3. Create Organization Administrator Role (Unique per Org, audit fields set after user created)
     INSERT INTO  system.roles (id, name, org_id, role_name, parent_role_id, level)
     VALUES (gen_random_uuid(), org_names[i] || ' Admin Role', v_org_id, 'Organization Administrator', NULL, 0)
     RETURNING id INTO v_role_id;
@@ -59,8 +59,13 @@ BEGIN
     );
 
     -- 5. Link to Public.Users
-    INSERT INTO  system.users (id, name, org_id, profile_id, role_id, email, is_active)
-    VALUES (v_auth_user_id, org_names[i] || ' Admin User', v_org_id, v_profile_id, v_role_id, admin_emails[i], true);
+    INSERT INTO  system.users (id, name, org_id, profile_id, role_id, email, is_active, owner_id, createdby_id, updatedby_id)
+    VALUES (v_auth_user_id, org_names[i] || ' Admin User', v_org_id, v_profile_id, v_role_id, admin_emails[i], true, v_auth_user_id, v_auth_user_id, v_auth_user_id);
+
+    -- 6. Update audit fields on previously created records (now that user exists)
+    UPDATE system.organizations SET owner_id = v_auth_user_id, createdby_id = v_auth_user_id, updatedby_id = v_auth_user_id WHERE id = v_org_id;
+    UPDATE system.profiles SET owner_id = v_auth_user_id, createdby_id = v_auth_user_id, updatedby_id = v_auth_user_id WHERE id = v_profile_id;
+    UPDATE system.roles SET owner_id = v_auth_user_id, createdby_id = v_auth_user_id, updatedby_id = v_auth_user_id WHERE id = v_role_id;
 
     RAISE NOTICE 'Created Organization and Admin for: %', org_names[i];
 

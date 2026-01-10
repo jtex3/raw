@@ -24,6 +24,9 @@ CREATE TABLE system.organizations (
   org_name TEXT NOT NULL,
   subdomain TEXT NOT NULL,
   is_active BOOLEAN DEFAULT true,
+  owner_id UUID,
+  createdby_id UUID,
+  updatedby_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(subdomain)
@@ -37,6 +40,9 @@ CREATE TABLE system.roles (
   role_name TEXT NOT NULL,
   parent_role_id UUID REFERENCES system.roles(id) ON DELETE SET NULL,
   level INTEGER,
+  owner_id UUID,
+  createdby_id UUID,
+  updatedby_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(org_id, role_name),
   CHECK (id != parent_role_id)
@@ -49,6 +55,9 @@ CREATE TABLE system.profiles (
   org_id UUID NOT NULL REFERENCES system.organizations(id) ON DELETE CASCADE,
   profile_name TEXT NOT NULL,
   description TEXT,
+  owner_id UUID,
+  createdby_id UUID,
+  updatedby_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(org_id, profile_name)
 );
@@ -62,6 +71,9 @@ CREATE TABLE system.users (
   role_id UUID REFERENCES system.roles(id) ON DELETE SET NULL,
   email TEXT NOT NULL,
   is_active BOOLEAN DEFAULT true,
+  owner_id UUID,
+  createdby_id UUID,
+  updatedby_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(org_id, email)
@@ -81,6 +93,9 @@ CREATE TABLE system.profile_object_permissions (
   can_read BOOLEAN DEFAULT false,
   can_update BOOLEAN DEFAULT false,
   can_delete BOOLEAN DEFAULT false,
+  owner_id UUID,
+  createdby_id UUID,
+  updatedby_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(profile_id, object_name)
 );
@@ -94,6 +109,9 @@ CREATE TABLE system.profile_field_permissions (
   field_name TEXT NOT NULL,
   can_read BOOLEAN DEFAULT false,
   can_edit BOOLEAN DEFAULT false,
+  owner_id UUID,
+  createdby_id UUID,
+  updatedby_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(profile_id, object_name, field_name)
 );
@@ -109,6 +127,9 @@ CREATE TABLE system.org_wide_defaults (
   org_id UUID NOT NULL REFERENCES system.organizations(id) ON DELETE CASCADE,
   object_name TEXT NOT NULL,
   default_access TEXT NOT NULL CHECK (default_access IN ('private', 'public_read_only', 'public_read_write')),
+  owner_id UUID,
+  createdby_id UUID,
+  updatedby_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(org_id, object_name)
 );
@@ -127,6 +148,9 @@ CREATE TABLE system.sharing_rules (
   criteria JSONB,
   owner_role_id UUID REFERENCES system.roles(id) ON DELETE CASCADE,
   is_active BOOLEAN DEFAULT true,
+  owner_id UUID,
+  createdby_id UUID,
+  updatedby_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(org_id, object_name, rule_name)
 );
@@ -141,6 +165,9 @@ CREATE TABLE system.manual_shares (
   shared_by_user_id UUID NOT NULL REFERENCES system.users(id) ON DELETE CASCADE,
   shared_to_user_id UUID NOT NULL REFERENCES system.users(id) ON DELETE CASCADE,
   access_level TEXT NOT NULL CHECK (access_level IN ('read', 'read_write')),
+  owner_id UUID,
+  createdby_id UUID,
+  updatedby_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(object_name, record_id, shared_to_user_id)
 );
@@ -162,6 +189,9 @@ CREATE TABLE system.list_views (
   filters JSONB,
   columns JSONB,
   sort_by JSONB,
+  owner_id UUID,
+  createdby_id UUID,
+  updatedby_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(org_id, object_name, view_name)
@@ -889,6 +919,140 @@ CREATE TRIGGER update_list_views_updated_at
   EXECUTE FUNCTION system.update_updated_at();
 
 -- =====================================================
+-- TRIGGERS FOR AUDIT FIELDS (owner_id, createdby_id, updatedby_id)
+-- =====================================================
+
+-- Set owner_id and createdby_id on INSERT (owner_id = createdby_id initially)
+CREATE OR REPLACE FUNCTION system.set_audit_fields_on_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.createdby_id = auth.uid();
+  NEW.owner_id = COALESCE(NEW.owner_id, auth.uid());
+  NEW.updatedby_id = auth.uid();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Set updatedby_id on UPDATE
+CREATE OR REPLACE FUNCTION system.set_audit_fields_on_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updatedby_id = auth.uid();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Organizations
+CREATE TRIGGER set_organizations_audit_insert
+  BEFORE INSERT ON system.organizations
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_insert();
+
+CREATE TRIGGER set_organizations_audit_update
+  BEFORE UPDATE ON system.organizations
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_update();
+
+-- Roles
+CREATE TRIGGER set_roles_audit_insert
+  BEFORE INSERT ON system.roles
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_insert();
+
+CREATE TRIGGER set_roles_audit_update
+  BEFORE UPDATE ON system.roles
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_update();
+
+-- Profiles
+CREATE TRIGGER set_profiles_audit_insert
+  BEFORE INSERT ON system.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_insert();
+
+CREATE TRIGGER set_profiles_audit_update
+  BEFORE UPDATE ON system.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_update();
+
+-- Users
+CREATE TRIGGER set_users_audit_insert
+  BEFORE INSERT ON system.users
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_insert();
+
+CREATE TRIGGER set_users_audit_update
+  BEFORE UPDATE ON system.users
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_update();
+
+-- Profile Object Permissions
+CREATE TRIGGER set_profile_object_permissions_audit_insert
+  BEFORE INSERT ON system.profile_object_permissions
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_insert();
+
+CREATE TRIGGER set_profile_object_permissions_audit_update
+  BEFORE UPDATE ON system.profile_object_permissions
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_update();
+
+-- Profile Field Permissions
+CREATE TRIGGER set_profile_field_permissions_audit_insert
+  BEFORE INSERT ON system.profile_field_permissions
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_insert();
+
+CREATE TRIGGER set_profile_field_permissions_audit_update
+  BEFORE UPDATE ON system.profile_field_permissions
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_update();
+
+-- Org Wide Defaults
+CREATE TRIGGER set_org_wide_defaults_audit_insert
+  BEFORE INSERT ON system.org_wide_defaults
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_insert();
+
+CREATE TRIGGER set_org_wide_defaults_audit_update
+  BEFORE UPDATE ON system.org_wide_defaults
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_update();
+
+-- Sharing Rules
+CREATE TRIGGER set_sharing_rules_audit_insert
+  BEFORE INSERT ON system.sharing_rules
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_insert();
+
+CREATE TRIGGER set_sharing_rules_audit_update
+  BEFORE UPDATE ON system.sharing_rules
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_update();
+
+-- Manual Shares
+CREATE TRIGGER set_manual_shares_audit_insert
+  BEFORE INSERT ON system.manual_shares
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_insert();
+
+CREATE TRIGGER set_manual_shares_audit_update
+  BEFORE UPDATE ON system.manual_shares
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_update();
+
+-- List Views
+CREATE TRIGGER set_list_views_audit_insert
+  BEFORE INSERT ON system.list_views
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_insert();
+
+CREATE TRIGGER set_list_views_audit_update
+  BEFORE UPDATE ON system.list_views
+  FOR EACH ROW
+  EXECUTE FUNCTION system.set_audit_fields_on_update();
+
+-- =====================================================
 -- GRANT STATEMENTS - TABLE PERMISSIONS
 -- =====================================================
 -- Grant USAGE on system schema to authenticated
@@ -930,6 +1094,8 @@ GRANT EXECUTE ON FUNCTION system.get_owd_access(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION system.has_sharing_rule_access(UUID, UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION system.has_manual_share(UUID, UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION system.update_updated_at() TO authenticated;
+GRANT EXECUTE ON FUNCTION system.set_audit_fields_on_insert() TO authenticated;
+GRANT EXECUTE ON FUNCTION system.set_audit_fields_on_update() TO authenticated;
 GRANT EXECUTE ON FUNCTION system.get_schema_system_tables() TO authenticated;
 GRANT EXECUTE ON FUNCTION system.get_schema_system_tables_columns(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION system.get_table_foreign_keys(TEXT) TO authenticated;
