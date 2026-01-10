@@ -722,6 +722,45 @@ AS $$
   ORDER BY kcu.column_name;
 $$;
 
+-- Get accessible objects (tables) for the current user based on profile permissions
+CREATE OR REPLACE FUNCTION system.get_accessible_objects()
+RETURNS TABLE (
+  object_name TEXT,
+  can_create BOOLEAN,
+  can_read BOOLEAN,
+  can_update BOOLEAN,
+  can_delete BOOLEAN
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+SET search_path = system, pg_temp
+AS $$
+DECLARE
+  user_profile_id UUID;
+BEGIN
+  -- Get user's profile from JWT
+  user_profile_id := (auth.jwt() -> 'app_metadata' ->> 'profile_id')::UUID;
+
+  IF user_profile_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  -- Return all objects the user's profile has permissions for
+  RETURN QUERY
+  SELECT
+    pop.object_name,
+    pop.can_create,
+    pop.can_read,
+    pop.can_update,
+    pop.can_delete
+  FROM system.profile_object_permissions pop
+  WHERE pop.profile_id = user_profile_id
+    AND (pop.can_create = true OR pop.can_read = true OR pop.can_update = true OR pop.can_delete = true)
+  ORDER BY pop.object_name;
+END;
+$$;
+
 -- =====================================================
 -- ENABLE RLS ON ALL TABLES
 -- =====================================================
@@ -1099,6 +1138,7 @@ GRANT EXECUTE ON FUNCTION system.set_audit_fields_on_update() TO authenticated;
 GRANT EXECUTE ON FUNCTION system.get_schema_system_tables() TO authenticated;
 GRANT EXECUTE ON FUNCTION system.get_schema_system_tables_columns(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION system.get_table_foreign_keys(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_accessible_objects() TO authenticated;
 
 -- =====================================================
 -- DEFAULT PRIVILEGES FOR FUTURE OBJECTS
