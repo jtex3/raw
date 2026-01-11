@@ -78,11 +78,14 @@ export default function ViewRecordPage() {
         throw new Error('Could not determine primary key column')
       }
 
+      // Use soft delete function
       const { error: deleteError } = await supabase
-        .schema(schema)
-        .from(tableName)
-        .delete()
-        .eq(pkColumn.column_name, recordId)
+        .schema('recycle')
+        .rpc('soft_delete_record', {
+          p_schema: schema,
+          p_table: tableName,
+          p_record_id: recordId
+        })
 
       if (deleteError) {
         throw new Error(deleteError.message)
@@ -350,7 +353,7 @@ export default function ViewRecordPage() {
             {/* Modal Body */}
             <div className="px-6 py-5">
               <p className="text-gray-600 text-sm leading-relaxed">
-                Are you sure you want to permanently delete this record? This action cannot be undone and all associated data will be lost.
+                Are you sure you want to delete this record? The record will be moved to the Recycle Bin and can be restored later if needed.
               </p>
             </div>
 

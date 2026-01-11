@@ -86,7 +86,7 @@ CREATE TABLE system.users (
 -- Profile Object Permissions (CRUD per object/table)
 CREATE TABLE system.profile_object_permissions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
   profile_id UUID NOT NULL REFERENCES system.profiles(id) ON DELETE CASCADE,
   object_name TEXT NOT NULL,
   can_create BOOLEAN DEFAULT false,

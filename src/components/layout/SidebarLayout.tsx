@@ -19,7 +19,8 @@ import {
   LogOut,
   Menu,
   X,
-  Database
+  Database,
+  Trash2
 } from 'lucide-react'
 
 interface SidebarLayoutProps {
@@ -81,7 +82,14 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
           </nav>
 
           {/* Footer */}
-          <div className="p-4 border-t border-teal-800">
+          <div className="p-4 border-t border-teal-800 space-y-2">
+            <a
+              href="/recycle-bin"
+              className="flex items-center w-full p-3 text-white rounded-lg hover:bg-teal-800 transition-colors"
+            >
+              <Trash2 size={20} />
+              {isSidebarOpen && <span className="ml-3">Recycle Bin</span>}
+            </a>
             <button
               onClick={handleLogout}
               className="flex items-center w-full p-3 text-white rounded-lg hover:bg-teal-800 transition-colors"

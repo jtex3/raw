@@ -67,6 +67,20 @@ BEGIN
     UPDATE system.profiles SET owner_id = v_auth_user_id, createdby_id = v_auth_user_id, updatedby_id = v_auth_user_id WHERE id = v_profile_id;
     UPDATE system.roles SET owner_id = v_auth_user_id, createdby_id = v_auth_user_id, updatedby_id = v_auth_user_id WHERE id = v_role_id;
 
+    -- 7. Grant Organization Administrator read-only permissions on all system tables
+    INSERT INTO system.profile_object_permissions (name, profile_id, object_name, can_create, can_read, can_update, can_delete, owner_id, createdby_id, updatedby_id)
+    VALUES
+      (org_names[i] || ' Admin User', v_profile_id, 'list_views', false, true, false, false, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+      (org_names[i] || ' Admin User', v_profile_id, 'manual_shares', false, true, false, false, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+      (org_names[i] || ' Admin User', v_profile_id, 'org_wide_defaults', false, true, false, false, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+      (org_names[i] || ' Admin User', v_profile_id, 'organizations', false, true, false, false, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+      (org_names[i] || ' Admin User', v_profile_id, 'profile_field_permissions', false, true, false, false, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+      (org_names[i] || ' Admin User', v_profile_id, 'profile_object_permissions', false, true, false, false, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+      (org_names[i] || ' Admin User', v_profile_id, 'profiles', false, true, false, false, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+      (org_names[i] || ' Admin User', v_profile_id, 'roles', false, true, false, false, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+      (org_names[i] || ' Admin User', v_profile_id, 'sharing_rules', false, true, false, false, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+      (org_names[i] || ' Admin User', v_profile_id, 'users', false, true, false, false, v_auth_user_id, v_auth_user_id, v_auth_user_id);
+
     RAISE NOTICE 'Created Organization and Admin for: %', org_names[i];
 
   END LOOP;
