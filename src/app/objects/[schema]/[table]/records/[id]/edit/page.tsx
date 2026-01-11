@@ -63,8 +63,8 @@ export default function EditRecordPage() {
       const fetchForeignKeys = async () => {
         try {
           const { data: fkData, error: fkError } = await supabase
-            .schema(schema)
-            .rpc('get_table_foreign_keys', { table_name: tableName })
+            .schema('system')
+            .rpc('get_object_foreign_keys', { target_schema: schema, table_name: tableName })
 
           if (fkError) {
             console.error('Error fetching foreign keys:', fkError)
@@ -89,8 +89,8 @@ export default function EditRecordPage() {
 
       // Get column information only
       const { data: colData, error: colError } = await supabase
-        .schema(schema)
-        .rpc('get_schema_tables_columns', { target_table: tableName })
+        .schema('system')
+        .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
 
       if (colError) {
         throw new Error(colError.message)
@@ -113,8 +113,8 @@ export default function EditRecordPage() {
 
       // Get column information
       const { data: colData, error: colError } = await supabase
-        .schema(schema)
-        .rpc('get_schema_tables_columns', { target_table: tableName })
+        .schema('system')
+        .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
 
       if (colError) {
         throw new Error(colError.message)
@@ -319,6 +319,7 @@ export default function EditRecordPage() {
           'user_id': `${schema}.users`,
           'owner_id': `${schema}.users`,
           'createdby_id': `${schema}.users`,
+          'updatedby_id': `${schema}.users`,
           'lastmodifiedby_id': `${schema}.users`,
           'permission_id': `${schema}.permissions`
         }

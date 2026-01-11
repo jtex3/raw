@@ -41,9 +41,11 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
 
     // Get objects accessible to the current user based on their profile permissions
-    // Each schema has its own get_accessible_objects() function
-    const { data: accessibleObjects, error: accessError } = await supabase.schema(schema)
-      .rpc('get_accessible_objects')
+    // Pass the schema as a parameter to filter objects
+    // Note: The function is in the system schema, so we need to specify it
+    const { data: accessibleObjects, error: accessError } = await supabase
+      .schema('system')
+      .rpc('get_accessible_objects', { p_schema: schema })
 
     if (accessError) {
       console.error('Error fetching accessible objects:', accessError)
@@ -63,7 +65,7 @@ export async function GET(request: NextRequest) {
       (accessibleObjects as AccessibleObject[]).map(async (obj) => {
         try {
           const { count, error } = await supabase
-            .schema('system')
+            .schema(schema)
             .from(obj.object_name)
             .select('*', { count: 'exact', head: true })
 

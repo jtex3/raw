@@ -43,8 +43,8 @@ export default function TableDetailsPage() {
     try {
       setLoading(true)
       const { data, error: rpcError } = await supabase
-        .schema(schema)
-        .rpc('get_schema_tables_columns', { target_table: tableName })
+        .schema('system')
+        .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
 
       if (rpcError) {
         throw new Error(rpcError.message)

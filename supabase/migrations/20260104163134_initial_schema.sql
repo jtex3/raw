@@ -644,86 +644,59 @@ BEGIN
 END;
 $$;
 
--- To list all tables of public schema
-CREATE OR REPLACE FUNCTION system.get_schema_public_tables()
-RETURNS TABLE (table_name text, table_type text) 
-LANGUAGE sql SECURITY DEFINER
-SET search_path = pg_catalog, information_schema, public, pg_temp
-AS $$
-  SELECT 
-    t.table_name::text,
-    t.table_type::text
-  FROM information_schema.tables t 
-  WHERE t.table_schema = 'system' 
-    AND t.table_type = 'BASE TABLE'
-    AND t.table_name <> 'schema_migrations';
-$$;
-
--- To list all tables of system schema
-CREATE OR REPLACE FUNCTION system.get_schema_system_tables()
-RETURNS TABLE (table_name text, table_type text) 
-LANGUAGE sql SECURITY DEFINER
-SET search_path = pg_catalog, information_schema, system, pg_temp
-AS $$
-  SELECT 
-    t.table_name::text,
-    t.table_type::text
-  FROM information_schema.tables t 
-  WHERE t.table_schema = 'system' 
-    AND t.table_type = 'BASE TABLE'
-    AND t.table_name <> 'schema_migrations';
-$$;
-
--- To list all columns for a specific table of system schema
-CREATE OR REPLACE FUNCTION system.get_schema_system_tables_columns(target_table text)
-RETURNS TABLE (
-  column_name text,
-  data_type text,
-  is_nullable text,
-  column_default text
-) 
-LANGUAGE sql SECURITY DEFINER
-SET search_path = pg_catalog, information_schema, system, pg_temp
-AS $$
-  SELECT 
-    c.column_name::text,
-    c.data_type::text,
-    c.is_nullable::text,
-    c.column_default::text
-  FROM information_schema.columns c
-  WHERE c.table_schema = 'system' 
-    AND c.table_name = target_table
-  ORDER BY c.ordinal_position;
-$$;
-
-CREATE OR REPLACE FUNCTION system.get_table_foreign_keys(table_name text)
+CREATE OR REPLACE FUNCTION system.get_object_foreign_keys(target_schema TEXT, table_name TEXT)
 RETURNS TABLE (
     column_name text,
     foreign_table_name text,
     foreign_column_name text
-) 
-LANGUAGE sql 
+)
+LANGUAGE sql
 STABLE
+SECURITY DEFINER
+SET search_path TO 'pg_catalog', 'information_schema', 'system', 'pg_temp'
 AS $$
-  SELECT 
+  SELECT
     kcu.column_name::text,
-    ccu.table_name::text AS foreign_table_name,
+    ccu.table_schema::text || '.' || ccu.table_name::text AS foreign_table_name,
     ccu.column_name::text AS foreign_column_name
-  FROM information_schema.table_constraints AS tc 
+  FROM information_schema.table_constraints AS tc
     JOIN information_schema.key_column_usage AS kcu
       ON tc.constraint_name = kcu.constraint_name
       AND tc.table_schema = kcu.table_schema
     JOIN information_schema.constraint_column_usage AS ccu
       ON ccu.constraint_name = tc.constraint_name
       AND ccu.table_schema = tc.table_schema
-  WHERE tc.constraint_type = 'FOREIGN KEY' 
-    AND tc.table_name = get_table_foreign_keys.table_name
-    AND tc.table_schema = 'system' 
+  WHERE tc.constraint_type = 'FOREIGN KEY'
+    AND tc.table_name = get_object_foreign_keys.table_name
+    AND tc.table_schema = get_object_foreign_keys.target_schema
   ORDER BY kcu.column_name;
 $$;
 
+-- To list all columns for a specific table in any schema
+CREATE OR REPLACE FUNCTION system.get_schema_object_columns(target_schema TEXT, target_table TEXT)
+RETURNS TABLE (
+  column_name TEXT,
+  data_type TEXT,
+  is_nullable TEXT,
+  column_default TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path TO 'pg_catalog', 'information_schema', 'system', 'pg_temp'
+AS $$
+  SELECT
+    c.column_name::text,
+    c.data_type::text,
+    c.is_nullable::text,
+    c.column_default::text
+  FROM information_schema.columns c
+  WHERE c.table_schema = target_schema
+    AND c.table_name = target_table
+  ORDER BY c.ordinal_position;
+$$;
+
 -- Get accessible objects (tables) for the current user based on profile permissions
-CREATE OR REPLACE FUNCTION system.get_accessible_objects()
+CREATE OR REPLACE FUNCTION system.get_accessible_objects(p_schema TEXT DEFAULT 'system')
 RETURNS TABLE (
   object_name TEXT,
   can_create BOOLEAN,
@@ -746,6 +719,11 @@ BEGIN
     RETURN;
   END IF;
 
+  -- Validate schema parameter
+  IF p_schema NOT IN ('system', 'public') THEN
+    RAISE EXCEPTION 'Invalid schema. Must be "system" or "public".';
+  END IF;
+
   -- Return all objects the user's profile has permissions for
   RETURN QUERY
   SELECT
@@ -756,6 +734,12 @@ BEGIN
     pop.can_delete
   FROM system.profile_object_permissions pop
   WHERE pop.profile_id = user_profile_id
+    AND pop.object_name IN (
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = p_schema
+        AND table_type = 'BASE TABLE'
+    )
     AND (pop.can_create = true OR pop.can_read = true OR pop.can_update = true OR pop.can_delete = true)
   ORDER BY pop.object_name;
 END;
@@ -1135,10 +1119,9 @@ GRANT EXECUTE ON FUNCTION system.has_manual_share(UUID, UUID, TEXT) TO authentic
 GRANT EXECUTE ON FUNCTION system.update_updated_at() TO authenticated;
 GRANT EXECUTE ON FUNCTION system.set_audit_fields_on_insert() TO authenticated;
 GRANT EXECUTE ON FUNCTION system.set_audit_fields_on_update() TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_schema_system_tables() TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_schema_system_tables_columns(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_table_foreign_keys(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_accessible_objects() TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_schema_object_columns(TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_object_foreign_keys(TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_accessible_objects(TEXT) TO authenticated;
 
 -- =====================================================
 -- DEFAULT PRIVILEGES FOR FUTURE OBJECTS

@@ -88,15 +88,15 @@ BEGIN
   -- Grant Admin full CRUD on all system tables
   INSERT INTO system.profile_object_permissions (id, name, profile_id, object_name, can_create, can_read, can_update, can_delete, owner_id, createdby_id, updatedby_id)
   VALUES
-    (gen_random_uuid(), 'Admin Organizations Permission', v_profile_id, 'organizations', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
-    (gen_random_uuid(), 'Admin Roles Permission', v_profile_id, 'roles', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
-    (gen_random_uuid(), 'Admin Profiles Permission', v_profile_id, 'profiles', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
-    (gen_random_uuid(), 'Admin Users Permission', v_profile_id, 'users', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
-    (gen_random_uuid(), 'Admin Profile Object Permissions Permission', v_profile_id, 'profile_object_permissions', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
-    (gen_random_uuid(), 'Admin Profile Field Permissions Permission', v_profile_id, 'profile_field_permissions', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
-    (gen_random_uuid(), 'Admin Org Wide Defaults Permission', v_profile_id, 'org_wide_defaults', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
-    (gen_random_uuid(), 'Admin Sharing Rules Permission', v_profile_id, 'sharing_rules', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+    (gen_random_uuid(), 'Admin List Views Permission', v_profile_id, 'list_views', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
     (gen_random_uuid(), 'Admin Manual Shares Permission', v_profile_id, 'manual_shares', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
-    (gen_random_uuid(), 'Admin List Views Permission', v_profile_id, 'list_views', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id);
+    (gen_random_uuid(), 'Admin Org Wide Defaults Permission', v_profile_id, 'org_wide_defaults', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+    (gen_random_uuid(), 'Admin Organizations Permission', v_profile_id, 'organizations', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+    (gen_random_uuid(), 'Admin Profile Field Permissions Permission', v_profile_id, 'profile_field_permissions', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+    (gen_random_uuid(), 'Admin Profile Object Permissions Permission', v_profile_id, 'profile_object_permissions', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+    (gen_random_uuid(), 'Admin Profiles Permission', v_profile_id, 'profiles', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+    (gen_random_uuid(), 'Admin Roles Permission', v_profile_id, 'roles', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+    (gen_random_uuid(), 'Admin Sharing Rules Permission', v_profile_id, 'sharing_rules', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id),
+    (gen_random_uuid(), 'Admin Users Permission', v_profile_id, 'users', true, true, true, true, v_auth_user_id, v_auth_user_id, v_auth_user_id);
 
 END $$;

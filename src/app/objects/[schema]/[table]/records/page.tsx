@@ -12,7 +12,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, ArrowLeft, Rows, Plus } from 'lucide-react'
 import Link from 'next/link'
@@ -37,13 +37,32 @@ export default function TableRecordsPage() {
   const [foreignKeys, setForeignKeys] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [canCreate, setCanCreate] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
     if (tableName) {
       fetchTableRecords()
+      fetchPermissions()
     }
   }, [tableName])
+
+  const fetchPermissions = async () => {
+    try {
+      const response = await fetch(`/api/schema?schema=${schema}`)
+      if (response.ok) {
+        const data = await response.json()
+        const tablePermissions = data.tables?.find(
+          (t: any) => t.table_name === tableName
+        )
+        if (tablePermissions) {
+          setCanCreate(tablePermissions.can_create === true)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch permissions:', err)
+    }
+  }
 
   const fetchTableRecords = async () => {
     try {
@@ -51,8 +70,8 @@ export default function TableRecordsPage() {
 
       // First, get column names to display as headers
       const { data: colData, error: colError } = await supabase
-        .schema(schema)
-        .rpc('get_schema_tables_columns', { target_table: tableName })
+        .schema('system')
+        .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
 
       if (colError) {
         throw new Error(colError.message)
@@ -210,15 +229,17 @@ export default function TableRecordsPage() {
 
   return (
     <div className="p-6 relative">
-      {/* Floating Add Button */}
-      <Link
-        href={`/objects/${schema}/${tableName}/records/new/edit`}
-        className="absolute top-18 right-6 inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 border border-teal-600 rounded transition-colors shadow-lg"
-        title="Add New Record"
-      >
-        <Plus className="h-3 w-3 mr-1" />
-        Add Record
-      </Link>
+      {/* Floating Add Button - only show if user has create permission */}
+      {canCreate && (
+        <Link
+          href={`/objects/${schema}/${tableName}/records/new/edit`}
+          className="absolute top-18 right-6 inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 border border-teal-600 rounded transition-colors shadow-lg"
+          title="Add New Record"
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Add Record
+        </Link>
+      )}
 
       {/* Header with back navigation */}
       <div className="mb-6">

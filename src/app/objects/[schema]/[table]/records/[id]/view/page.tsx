@@ -11,9 +11,9 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, ArrowLeft, Edit } from 'lucide-react'
+import { Loader2, ArrowLeft, Edit, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SmartForeignKeyReference } from '@/components/ui/smart-foreign-key-reference'
@@ -27,6 +27,7 @@ interface ColumnInfo {
 
 export default function ViewRecordPage() {
   const params = useParams()
+  const router = useRouter()
   const schema = params.schema as string
   const tableName = params.table as string
   const recordId = params.id as string
@@ -35,13 +36,66 @@ export default function ViewRecordPage() {
   const [foreignKeys, setForeignKeys] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [canUpdate, setCanUpdate] = useState(false)
+  const [canDelete, setCanDelete] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
     if (tableName && recordId) {
       fetchTableData()
+      fetchPermissions()
     }
   }, [tableName, recordId])
+
+  const fetchPermissions = async () => {
+    try {
+      const response = await fetch(`/api/schema?schema=${schema}`)
+      if (response.ok) {
+        const data = await response.json()
+        const tablePermissions = data.tables?.find(
+          (t: any) => t.table_name === tableName
+        )
+        if (tablePermissions) {
+          setCanUpdate(tablePermissions.can_update === true)
+          setCanDelete(tablePermissions.can_delete === true)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch permissions:', err)
+    }
+  }
+
+  const handleDelete = async () => {
+    try {
+      setDeleting(true)
+
+      // Find the primary key column
+      const pkColumn = columns.find(c => c.data_type === 'uuid') || columns[0]
+
+      if (!pkColumn) {
+        throw new Error('Could not determine primary key column')
+      }
+
+      const { error: deleteError } = await supabase
+        .schema(schema)
+        .from(tableName)
+        .delete()
+        .eq(pkColumn.column_name, recordId)
+
+      if (deleteError) {
+        throw new Error(deleteError.message)
+      }
+
+      // Redirect back to records page
+      router.push(`/objects/${schema}/${tableName}/records`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete record')
+      setDeleting(false)
+      setShowDeleteModal(false)
+    }
+  }
 
   // Fetch foreign key information
   useEffect(() => {
@@ -89,8 +143,8 @@ export default function ViewRecordPage() {
 
       // Get column information
       const { data: colData, error: colError } = await supabase
-        .schema(schema)
-        .rpc('get_schema_tables_columns', { target_table: tableName })
+        .schema('system')
+        .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
 
       if (colError) {
         throw new Error(colError.message)
@@ -250,16 +304,86 @@ export default function ViewRecordPage() {
         </div>
       </div>
 
-      {/* Floating Edit button */}
-      <div className="fixed bottom-6 right-6">
-        <Link
-          href={`/objects/${schema}/${tableName}/records/${recordId}/edit`}
-          className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 border border-teal-600 rounded transition-colors shadow-lg"
-        >
-          <Edit className="h-3 w-3 mr-1" />
-          Edit
-        </Link>
+      {/* Floating action buttons */}
+      <div className="fixed bottom-6 right-6 flex space-x-2">
+        {canUpdate && (
+          <Link
+            href={`/objects/${schema}/${tableName}/records/${recordId}/edit`}
+            className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 border border-teal-600 rounded transition-colors shadow-lg"
+          >
+            <Edit className="h-3 w-3 mr-1" />
+            Edit
+          </Link>
+        )}
+        {canDelete && (
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 border border-red-600 rounded transition-colors shadow-lg cursor-pointer"
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Delete
+          </button>
+        )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-[1px] bg-gray-900/5 cursor-not-allowed">
+          <div className="bg-white rounded-xl max-w-md w-full mx-4 shadow-2xl border border-gray-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 cursor-default">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-red-50 to-white">
+              <div className="flex items-center space-x-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Delete Record
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    {tableName}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-5">
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Are you sure you want to permanently delete this record? This action cannot be undone and all associated data will be lost.
+              </p>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end space-x-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="inline-flex items-center px-3 py-1 text-xs font-medium text-teal-600 bg-white hover:bg-gray-50 border border-teal-600 rounded transition-colors shadow-lg disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 border border-red-600 rounded transition-colors shadow-lg disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
