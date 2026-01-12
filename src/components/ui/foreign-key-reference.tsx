@@ -23,8 +23,9 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from './badge'
 import { Button } from './button'
-import { Search } from 'lucide-react'
+import { Search, ExternalLink } from 'lucide-react'
 import { ForeignKeyRecord } from '@/types/foreign-key'
+import Link from 'next/link'
 
 interface ForeignKeyReferenceProps {
   value: string | null
@@ -149,6 +150,11 @@ export function ForeignKeyReference({
   }
 
   if (mode === 'view') {
+    // Parse reference table to extract schema and table name
+    const [schema, tableName] = referenceTable.includes('.')
+      ? referenceTable.split('.')
+      : ['system', referenceTable]
+
     return (
       <div className={`flex items-center gap-2 ${className}`}>
         {isLoading ? (
@@ -160,9 +166,14 @@ export function ForeignKeyReference({
             Error
           </Badge>
         ) : displayValue ? (
-          <Badge variant="secondary" className="max-w-full">
+          <Link
+            href={`/objects/${schema}/${tableName}/records/${value}/view`}
+            className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 hover:underline transition-colors group"
+            title={`View ${displayValue}`}
+          >
             <span className="truncate">{displayValue}</span>
-          </Badge>
+            <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </Link>
         ) : (
           <Badge variant="outline" className="text-muted-foreground">
             No reference
