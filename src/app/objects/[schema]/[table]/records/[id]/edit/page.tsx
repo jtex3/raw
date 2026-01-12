@@ -327,7 +327,6 @@ export default function EditRecordPage() {
       }
 
       return (
-<<<<<<< HEAD
         <div className="space-y-2">
           <Label htmlFor={columnName}>{columnName}</Label>
           <InlineForeignKeyEditor
@@ -335,22 +334,11 @@ export default function EditRecordPage() {
             referenceTable={getReferenceTable(columnName)}
             columnName={columnName}
             onValueChange={(newValue) => {
-              setRecord(prev => ({ ...prev, [columnName]: newValue }))
-              setFormData(prev => ({ ...prev, [columnName]: newValue }))
+              setRecord((prev: any) => ({ ...prev, [columnName]: newValue }))
+              setFormData((prev: any) => ({ ...prev, [columnName]: newValue }))
             }}
           />
         </div>
-=======
-        <InlineForeignKeyEditor
-          value={value}
-          referenceTable={getReferenceTable(columnName)}
-          columnName={columnName}
-          onValueChange={(newValue) => {
-            setRecord((prev: any) => ({ ...prev, [columnName]: newValue }))
-            setFormData((prev: any) => ({ ...prev, [columnName]: newValue }))
-          }}
-        />
->>>>>>> 3dcb13f (foreign-key-edit-v2-working)
       )
     }
 

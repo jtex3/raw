@@ -1,0 +1,135 @@
+# Next.js + Supabase Project Rules
+# Keep it simple, scale with complexity
+
+## Core Principles
+- **Simplicity first**: Start simple, add complexity only when needed
+- **Type safety**: TypeScript everywhere, no `any` types
+- **Consistency**: Follow established patterns throughout
+- **Performance**: Optimize for user experience and developer experience
+- **Debugging**: Never use Fallbacks or Mockdata on code generation
+
+## Project Structure
+```
+src/
+├── app/                 # Next.js App Router
+│   ├── (auth)/         # Auth routes
+│   ├── (dashboard)/    # Protected routes
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
+├── components/         # Reusable UI components
+│   ├── ui/            # Base UI components
+│   ├── forms/         # Form components
+│   └── layout/        # Layout components
+├── lib/               # Utilities and configurations
+│   ├── supabase/      # Supabase client and auth
+│   ├── utils/         # Helper functions
+│   └── validations/   # Zod schemas
+├── hooks/             # Custom React hooks
+├── types/             # TypeScript type definitions
+└── middleware.ts      # Next.js middleware for auth
+```
+
+## File Naming Conventions
+- **Components**: PascalCase (`UserProfile.tsx`)
+- **Files**: kebab-case (`user-profile.ts`)
+- **Constants**: UPPER_SNAKE_CASE (`API_ENDPOINTS`)
+- **Types**: PascalCase with `T` prefix (`TUser`)
+
+## Code Standards
+
+### TypeScript
+- Use strict mode in `tsconfig.json`
+- Prefer interfaces over types for object shapes
+- Use enums sparingly, prefer union types
+- Always return explicit types from functions
+
+### React/Next.js
+- Use functional components with hooks
+- Server components by default, client components with `"use client"`
+- Prefer async/await over Promise chains
+- Use App Router conventions
+
+### Supabase Integration
+- Create typed queries using TypeScript generics
+- Use Row Level Security (RLS) for data access
+- Implement proper error handling for all Supabase calls
+- Use Supabase Auth for authentication
+
+### Styling
+- Use Tailwind CSS for styling
+- Prefer utility classes over custom CSS
+- Use CSS variables for theme consistency
+- Mobile-first responsive design
+
+## Database Rules
+- All tables must have `created_at` and `updated_at` timestamps
+- Use UUIDs for primary keys
+- Implement RLS policies for all tables
+- Use foreign key constraints for relationships
+
+## Environment Variables
+- Use `.env.local` for local development
+- Prefix Supabase vars with `NEXT_PUBLIC_` when needed client-side
+- Never commit secrets to version control
+- Use Vercel environment variables for production
+
+## Git Workflow
+- Use conventional commits (`feat:`, `fix:`, `docs:`, etc.)
+- Create feature branches from `main`
+- Keep PRs focused and small
+- Require tests for new features
+
+## Performance Guidelines
+- Use Next.js Image component for all images
+- Implement proper loading states
+- Use React.memo() for expensive components
+- Optimize bundle size with dynamic imports
+
+## Security Best Practices
+- Validate all inputs with Zod schemas
+- Use HTTPS in production
+- Implement CSRF protection
+- Sanitize user-generated content
+- Use environment variables for secrets
+
+## Testing Strategy
+- Unit tests for utility functions
+- Integration tests for API routes
+- E2E tests for critical user flows
+- Test database operations with Supabase test database
+
+## Documentation
+- Update README.md with setup instructions
+- Document complex business logic
+- Use JSDoc for public functions
+- Keep API documentation current
+
+## Dependencies
+- Prefer official packages over alternatives
+- Keep dependencies minimal and up-to-date
+- Use npm audit regularly
+- Document why each dependency is needed
+
+## Linting and Formatting
+- Use ESLint with Next.js recommended config
+- Use Prettier for code formatting
+- Configure pre-commit hooks
+- Fix all linting errors before commits
+
+## Error Handling
+- Use error boundaries for React components
+- Implement global error handling
+- Log errors appropriately (not in production)
+- Provide user-friendly error messages
+
+## State Management
+- Use React state for local component state
+- Use Zustand for global state when needed
+- Leverage Supabase real-time for data synchronization
+- Avoid over-engineering state solutions
+
+## Database
+- Supabase remote is always being used
+- Don't use Supabase Cli for local Database. Supabase is remote!
+- Use Supabase MCP and prepare to change migration files accordingly

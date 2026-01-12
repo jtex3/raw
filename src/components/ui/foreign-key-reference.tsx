@@ -168,11 +168,10 @@ export function ForeignKeyReference({
         ) : displayValue ? (
           <Link
             href={`/objects/${schema}/${tableName}/records/${value}/view`}
-            className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 hover:underline transition-colors group"
+            className="text-teal-600 hover:text-teal-700 hover:underline font-medium"
             title={`View ${displayValue}`}
           >
-            <span className="truncate">{displayValue}</span>
-            <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+            {displayValue}
           </Link>
         ) : (
           <Badge variant="outline" className="text-muted-foreground">
