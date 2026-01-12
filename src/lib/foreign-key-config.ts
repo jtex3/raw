@@ -24,6 +24,16 @@ import { ForeignKeyConfig } from '@/types/foreign-key'
  * Maps table names to their foreign key display configurations
  */
 export const foreignKeyConfigs: Record<string, ForeignKeyConfig> = {
+  'business.entity': {
+    referenceTable: 'business.entity',
+    referenceField: 'id',
+    displayField: 'name'
+  },
+  'business.entity_junction': {
+    referenceTable: 'business.entity_junction',
+    referenceField: 'id',
+    displayField: 'name'
+  },
   'system.organizations': {
     referenceTable: 'system.organizations',
     referenceField: 'id',

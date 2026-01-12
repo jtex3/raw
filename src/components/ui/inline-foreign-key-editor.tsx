@@ -69,50 +69,59 @@ export default function InlineForeignKeyEditor({
   const getDisplayField = (tableName: string) => {
     const tableMap: { [key: string]: string } = {
       'system.organizations': 'org_name',
-      'system.profiles': 'profile_name', 
+      'system.profiles': 'profile_name',
       'system.roles': 'role_name',
       'system.users': 'email',
-      'system.permissions': 'permission_name'
+      'system.permissions': 'permission_name',
+      'business.entity': 'name',
+      'business.entity_junction': 'name'
     }
-    console.log('Getting display field for table:', tableName)
-    const field = tableMap[tableName] || 'name'
-    console.log('Display field:', field)
-    return field
+    return tableMap[tableName] || 'name'
   }
 
-  // Extract table name without schema prefix
-  const getTableName = (fullTableName: string) => {
-    if (fullTableName.startsWith('system.')) {
-      return fullTableName.replace('system.', '')
+  // Extract schema and table name from full reference table
+  const getSchemaAndTable = (fullTableName: string) => {
+    if (fullTableName.includes('.')) {
+      const [schema, table] = fullTableName.split('.')
+      return { schema, table }
     }
-    return fullTableName
+    return { schema: 'system', table: fullTableName }
   }
 
-  const tableName = getTableName(referenceTable)
+  const { schema: referenceSchema, table: tableName } = getSchemaAndTable(referenceTable)
   const displayField = getDisplayField(referenceTable)
 
   // Fetch current display value
   useEffect(() => {
     if (value && tableName) {
       const fetchDisplayValue = async () => {
-        console.log('Fetching display value for:', { value, tableName, displayField })
-        
         try {
-          const { data, error } = await supabase
-            .schema('system')
-            .from(tableName)
-            .select(displayField)
-            .eq('id', value)
-            .single()
-
-          console.log('Display value query result:', { data, error })
-
-          if (error) {
-            console.error('Error fetching display value:', error)
-            setCurrentDisplayValue(value)
+          // For business schema, use the special API endpoint
+          if (referenceSchema === 'business') {
+            const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
+            if (response.ok) {
+              const data = await response.json()
+              const records = data.records || []
+              const record = records.find((r: any) => r.id === value)
+              setCurrentDisplayValue(record?.[displayField] || value)
+            } else {
+              setCurrentDisplayValue(value)
+            }
           } else {
-            const row = data as unknown as Record<string, unknown> | null
-            setCurrentDisplayValue(String(row?.[displayField] ?? value))
+            const { data, error } = await supabase
+              .schema(referenceSchema)
+              .from(tableName)
+              .select(displayField)
+              .eq('id', value)
+              .single()
+
+            if (error) {
+              console.error('Error fetching display value:', error)
+              setCurrentDisplayValue(value)
+            } else {
+              const row = data as unknown as Record<string, unknown> | null
+              setCurrentDisplayValue(String(row?.[displayField] ?? value))
+            }
           }
         } catch (error) {
           console.error('Error fetching display value:', error)
@@ -122,12 +131,10 @@ export default function InlineForeignKeyEditor({
 
       fetchDisplayValue()
     }
-  }, [value, tableName, displayField])
+  }, [value, tableName, displayField, referenceSchema])
 
   // Search for records
   const handleSearch = async (query: string) => {
-    console.log('Searching for:', query, 'in table:', tableName, 'using field:', displayField)
-    
     if (!query) {
       setSearchResults([])
       return
@@ -135,20 +142,34 @@ export default function InlineForeignKeyEditor({
 
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .schema('system')
-        .from(tableName)
-        .select(`id, ${displayField}`)
-        .ilike(displayField, `%${query}%`)
-        .limit(10)
-
-      console.log('Search result:', { data, error })
-
-      if (error) {
-        console.error('Error searching:', error)
-        setSearchResults([])
+      // For business schema, use the special API endpoint
+      if (referenceSchema === 'business') {
+        const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
+        if (response.ok) {
+          const data = await response.json()
+          const records = data.records || []
+          // Filter by display field containing the query
+          const filtered = records.filter((r: any) =>
+            r[displayField]?.toLowerCase().includes(query.toLowerCase())
+          )
+          setSearchResults(filtered.slice(0, 10))
+        } else {
+          setSearchResults([])
+        }
       } else {
-        setSearchResults(data || [])
+        const { data, error } = await supabase
+          .schema(referenceSchema)
+          .from(tableName)
+          .select(`id, ${displayField}`)
+          .ilike(displayField, `%${query}%`)
+          .limit(10)
+
+        if (error) {
+          console.error('Error searching:', error)
+          setSearchResults([])
+        } else {
+          setSearchResults(data || [])
+        }
       }
     } catch (error) {
       console.error('Error searching:', error)
@@ -180,7 +201,7 @@ export default function InlineForeignKeyEditor({
         className="w-full px-3 py-2 border border-gray-300 rounded-md cursor-pointer flex items-center justify-between bg-white"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <span className={value ? 'text-gray-900' : 'text-gray-500'}>
+        <span className={value ? 'text-teal-600 font-medium' : 'text-gray-500'}>
           {value ? currentDisplayValue : `Select ${columnName.replace('_id', '')}...`}
         </span>
         <div className="flex items-center space-x-2">

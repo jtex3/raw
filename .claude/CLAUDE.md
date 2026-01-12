@@ -61,6 +61,7 @@ src/
 - Prefer utility classes over custom CSS
 - Use CSS variables for theme consistency
 - Mobile-first responsive design
+- Use shadcn/ui for UI components
 
 ## Database Rules
 - All tables must have `created_at` and `updated_at` timestamps
@@ -133,3 +134,6 @@ src/
 - Supabase remote is always being used
 - Don't use Supabase Cli for local Database. Supabase is remote!
 - Use Supabase MCP and prepare to change migration files accordingly
+
+## UI
+- foreign keys should be showed with the foreign-key-references component on view and inline-foreign-key-editor on edit.

@@ -62,16 +62,17 @@ export default function EditRecordPage() {
     if (tableName) {
       const fetchForeignKeys = async () => {
         try {
-          const { data: fkData, error: fkError } = await supabase
-            .schema('system')
-            .rpc('get_object_foreign_keys', { target_schema: schema, table_name: tableName })
-
-          if (fkError) {
-            console.error('Error fetching foreign keys:', fkError)
-            setForeignKeys([])
-          } else {
-            console.log('Foreign keys detected:', fkData)
-            setForeignKeys(fkData || [])
+          const fkResponse = await fetch(`/api/schema/foreign-keys?schema=${schema}&table=${tableName}`)
+          if (fkResponse.ok) {
+            const fkData = await fkResponse.json()
+            const fkList = fkData.foreignKeys || []
+            // Format foreign keys for the component
+            const formattedFKs = fkList.map((fk: any) => ({
+              column_name: fk.column_name,
+              foreign_table_name: `${fk.foreign_schema_name}.${fk.foreign_table_name}`,
+              foreign_column_name: fk.foreign_column_name
+            }))
+            setForeignKeys(formattedFKs)
           }
         } catch (err) {
           console.error('Error fetching foreign keys:', err)
@@ -81,23 +82,44 @@ export default function EditRecordPage() {
 
       fetchForeignKeys()
     }
-  }, [tableName])
+  }, [tableName, schema])
 
   const fetchColumnsOnly = async () => {
     try {
       setLoading(true)
 
-      // Get column information only
-      const { data: colData, error: colError } = await supabase
-        .schema('system')
-        .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
+      let colData: ColumnInfo[] = []
 
-      if (colError) {
-        throw new Error(colError.message)
+      // For business schema, use the special API endpoint
+      if (schema === 'business') {
+        const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
+        if (response.ok) {
+          const data = await response.json()
+          colData = data.columns || []
+        } else {
+          const errData = await response.json()
+          throw new Error(errData.error || 'Failed to fetch business columns')
+        }
+      } else {
+        // Get column information only
+        const { data: colDataRpc, error: colError } = await supabase
+          .schema('system')
+          .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
+
+        if (colError) {
+          throw new Error(colError.message)
+        }
+
+        colData = colDataRpc || []
       }
 
-      setColumns(colData || [])
-      setColumnInfo(colData || [])
+      // Filter out display_name column for entity and entity_junction tables
+      if (schema === 'business' && (tableName === 'entity' || tableName === 'entity_junction')) {
+        colData = colData.filter(c => c.column_name !== 'display_name')
+      }
+
+      setColumns(colData)
+      setColumnInfo(colData)
       setFormData({})
     } catch (err) {
       console.error('Error fetching columns:', err)
@@ -111,39 +133,70 @@ export default function EditRecordPage() {
     try {
       setLoading(true)
 
-      // Get column information
-      const { data: colData, error: colError } = await supabase
-        .schema('system')
-        .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
+      let colData: ColumnInfo[] = []
+      let recData: any = {}
 
-      if (colError) {
-        throw new Error(colError.message)
+      // For business schema, use the special API endpoint
+      if (schema === 'business') {
+        const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
+        if (response.ok) {
+          const data = await response.json()
+          colData = data.columns || []
+
+          // Get the specific record from the records
+          const records = data.records || []
+          recData = records.find((r: any) => r.id === recordId) || {}
+
+          if (Object.keys(recData).length === 0) {
+            throw new Error('Record not found')
+          }
+        } else {
+          const errData = await response.json()
+          throw new Error(errData.error || 'Failed to fetch business record')
+        }
+      } else {
+        // Get column information
+        const { data: colDataRpc, error: colError } = await supabase
+          .schema('system')
+          .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
+
+        if (colError) {
+          throw new Error(colError.message)
+        }
+
+        colData = colDataRpc || []
+
+        // Find the primary key column (usually UUID)
+        const pkColumn = colData?.find((c: ColumnInfo) => c.data_type === 'uuid') || colData?.[0]
+
+        if (!pkColumn) {
+          throw new Error('Could not determine primary key column')
+        }
+
+        // Fetch the specific record
+        const supabaseAny = supabase as any
+        const { data, error: recError } = await supabaseAny
+          .schema(schema)
+          .from(tableName)
+          .select('*')
+          .eq(pkColumn.column_name, recordId)
+          .single()
+
+        if (recError) {
+          throw new Error(recError.message)
+        }
+
+        recData = data || {}
       }
 
-      setColumns(colData || [])
-
-      // Find the primary key column (usually UUID)
-      const pkColumn = colData?.find((c: ColumnInfo) => c.data_type === 'uuid') || colData?.[0]
-      
-      if (!pkColumn) {
-        throw new Error('Could not determine primary key column')
+      // Filter out display_name column for entity and entity_junction tables
+      if (schema === 'business' && (tableName === 'entity' || tableName === 'entity_junction')) {
+        colData = colData.filter(c => c.column_name !== 'display_name')
       }
 
-      // Fetch the specific record
-      const supabaseAny = supabase as any
-      const { data, error: recError } = await supabaseAny
-        .schema(schema)
-        .from(tableName)
-        .select('*')
-        .eq(pkColumn.column_name, recordId)
-        .single()
-
-      if (recError) {
-        throw new Error(recError.message)
-      }
-
-      setRecord(data || {})
-      setFormData(data || {})
+      setColumns(colData)
+      setRecord(recData)
+      setFormData(recData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -218,6 +271,11 @@ export default function EditRecordPage() {
     // Don't allow editing audit fields (set by triggers)
     if (column.column_name === 'createdby_id' || column.column_name === 'lastmodifiedby_id' ||
         column.column_name === 'created_at' || column.column_name === 'updated_at') {
+      return false
+    }
+
+    // Don't allow editing name field for business tables (auto-generated by trigger)
+    if (schema === 'business' && column.column_name === 'name') {
       return false
     }
 
@@ -310,8 +368,17 @@ export default function EditRecordPage() {
 
     // If it's a UUID field (except primary key), use the inline editor
     if (column?.data_type === 'uuid' && columnName !== 'id') {
-      // Map column names to proper table names
+      // Find the foreign key reference from the fetched data
+      const foreignKey = foreignKeys.find(fk => fk.column_name === columnName)
+
+      // Map column names to proper table names (fallback for common patterns)
       const getReferenceTable = (colName: string) => {
+        // First try to use the fetched foreign key info
+        if (foreignKey) {
+          return foreignKey.foreign_table_name
+        }
+
+        // Fallback to common patterns
         const tableMap: { [key: string]: string } = {
           'org_id': `${schema}.organizations`,
           'profile_id': `${schema}.profiles`,

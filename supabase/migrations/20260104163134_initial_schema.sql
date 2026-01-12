@@ -1122,6 +1122,8 @@ GRANT EXECUTE ON FUNCTION system.set_audit_fields_on_update() TO authenticated;
 GRANT EXECUTE ON FUNCTION system.get_schema_object_columns(TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION system.get_object_foreign_keys(TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION system.get_accessible_objects(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_schema_objects(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_schema_table_data(TEXT, TEXT, INTEGER) TO authenticated;
 
 -- =====================================================
 -- DEFAULT PRIVILEGES FOR FUTURE OBJECTS
@@ -1153,3 +1155,70 @@ COMMENT ON TABLE system.org_wide_defaults IS 'Organization-wide default access l
 COMMENT ON TABLE system.sharing_rules IS 'Criteria-based and ownership-based sharing rules.';
 COMMENT ON TABLE system.manual_shares IS 'Ad-hoc record sharing between users.';
 COMMENT ON TABLE system.list_views IS 'Custom list views with filters, columns, and sorting configuration.';
+
+-- =====================================================
+-- GENERIC SCHEMA DISCOVERY FUNCTIONS
+-- =====================================================
+-- These functions enable dynamic schema discovery for any schema
+-- Works around PostgREST schema limitations
+
+-- Drop function if exists
+DROP FUNCTION IF EXISTS system.get_schema_objects(TEXT) CASCADE;
+
+CREATE OR REPLACE FUNCTION system.get_schema_objects(p_schema TEXT DEFAULT 'system')
+RETURNS TABLE (
+  table_name TEXT,
+  table_type TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path TO 'pg_catalog', 'information_schema', 'system', 'pg_temp'
+AS $$
+  SELECT
+    t.table_name::text,
+    t.table_type::text
+  FROM information_schema.tables t
+  WHERE t.table_schema = p_schema
+    AND t.table_type IN ('BASE TABLE', 'VIEW')
+  ORDER BY t.table_type, t.table_name;
+$$;
+
+-- Grant execute to authenticated users
+GRANT EXECUTE ON FUNCTION system.get_schema_objects(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_schema_objects(TEXT) TO service_role;
+
+-- Generic function to query any schema's table data
+DROP FUNCTION IF EXISTS system.get_schema_table_data(TEXT, TEXT, INTEGER) CASCADE;
+
+CREATE OR REPLACE FUNCTION system.get_schema_table_data(
+  p_schema TEXT,
+  p_table_name TEXT,
+  p_limit INTEGER DEFAULT 1000
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'pg_catalog', 'information_schema', 'system', 'pg_temp'
+AS $$
+DECLARE
+  v_query TEXT;
+  v_result JSON;
+BEGIN
+  -- Build and execute dynamic query
+  v_query := format(
+    'SELECT COALESCE(jsonb_agg(row_to_json(t)), ''[]''::jsonb) AS result FROM (SELECT * FROM %I.%I LIMIT %s) t',
+    p_schema,
+    p_table_name,
+    p_limit
+  );
+
+  EXECUTE v_query INTO v_result;
+
+  RETURN v_result;
+END;
+$$;
+
+-- Grant execute to authenticated users
+GRANT EXECUTE ON FUNCTION system.get_schema_table_data(TEXT, TEXT, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_schema_table_data(TEXT, TEXT, INTEGER) TO service_role;

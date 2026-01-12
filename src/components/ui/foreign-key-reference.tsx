@@ -69,21 +69,39 @@ export function ForeignKeyReference({
     const fetchDisplayValue = async () => {
       setIsLoading(true)
       setError(null)
-      
+
+      // Parse reference table to extract schema and table name
+      const [schema, tableName] = referenceTable.includes('.')
+        ? referenceTable.split('.')
+        : ['system', referenceTable]
+
       try {
-        const { data, error } = await supabase
-          .schema('system')
-          .from(referenceTable.replace('system.', ''))
-          .select(displayField)
-          .eq(referenceField, value)
-          .single()
-        
-        if (error) {
-          console.error('Supabase query error:', error)
-          throw new Error(`Supabase error: ${error.message}`)
+        // For business schema, use the special API endpoint
+        if (schema === 'business') {
+          const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
+          if (response.ok) {
+            const data = await response.json()
+            const records = data.records || []
+            const record = records.find((r: any) => r.id === value)
+            setDisplayValue(record?.[displayField] || '')
+          } else {
+            throw new Error('Failed to fetch business records')
+          }
+        } else {
+          const { data, error } = await supabase
+            .schema(schema)
+            .from(tableName)
+            .select(displayField)
+            .eq(referenceField, value)
+            .single()
+
+          if (error) {
+            console.error('Supabase query error:', error)
+            throw new Error(`Supabase error: ${error.message}`)
+          }
+
+          setDisplayValue((data as any)?.[displayField] || '')
         }
-        
-        setDisplayValue((data as any)?.[displayField] || '')
       } catch (err) {
         console.error('Error fetching reference:', err)
         setError('Failed to load reference')
@@ -106,16 +124,38 @@ export function ForeignKeyReference({
     setIsLoading(true)
     setError(null)
 
-    try {
-      const { data, error } = await supabase
-        .from(referenceTable)
-        .select(`${referenceField}, ${displayField}`)
-        .ilike(displayField, `%${query}%`)
-        .limit(10)
+    // Parse reference table to extract schema and table name
+    const [schema, tableName] = referenceTable.includes('.')
+      ? referenceTable.split('.')
+      : ['system', referenceTable]
 
-      if (error) throw error
-      
-      setSearchResults((data as unknown as ForeignKeyRecord[]) || [])
+    try {
+      // For business schema, use the special API endpoint
+      if (schema === 'business') {
+        const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
+        if (response.ok) {
+          const data = await response.json()
+          const records = data.records || []
+          // Filter by display field containing the query
+          const filtered = records.filter((r: any) =>
+            r[displayField]?.toLowerCase().includes(query.toLowerCase())
+          )
+          setSearchResults(filtered.slice(0, 10) as unknown as ForeignKeyRecord[])
+        } else {
+          throw new Error('Failed to search business records')
+        }
+      } else {
+        const { data, error } = await supabase
+          .schema(schema)
+          .from(tableName)
+          .select(`${referenceField}, ${displayField}`)
+          .ilike(displayField, `%${query}%`)
+          .limit(10)
+
+        if (error) throw error
+
+        setSearchResults((data as unknown as ForeignKeyRecord[]) || [])
+      }
     } catch (err) {
       console.error('Error searching:', err)
       setError('Failed to search')

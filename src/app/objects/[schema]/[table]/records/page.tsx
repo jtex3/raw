@@ -68,66 +68,80 @@ export default function TableRecordsPage() {
     try {
       setLoading(true)
 
-      // First, get column names to display as headers
-      const { data: colData, error: colError } = await supabase
-        .schema('system')
-        .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
+      // For business schema, use the special API endpoint
+      let colData: any[] = []
+      let recData: any[] = []
 
-      if (colError) {
-        throw new Error(colError.message)
-      }
+      if (schema === 'business') {
+        const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
+        if (response.ok) {
+          const data = await response.json()
+          colData = data.columns || []
+          recData = data.records || []
 
-      const columnNames = colData?.map((c: any) => c.column_name) || []
-      setColumns(columnNames)
-      setColumnInfo(colData || [])
-
-      // Get foreign key information - use simple column name patterns for common relationships
-      const allForeignKeys: any[] = []
-      
-      // Check for common foreign key column patterns
-      colData?.forEach((col: any) => {
-        if (col.data_type === 'uuid' && col.column_name !== 'id') {
-          // Common foreign key patterns
-          if (col.column_name.endsWith('_id')) {
-            const baseName = col.column_name.replace('_id', '')
-            
-            // Map common base names to table names
-            const tableMap: { [key: string]: string } = {
-              'org': 'organizations',
-              'organization': 'organizations', 
-              'profile': 'profiles',
-              'user': 'users',
-              'role': 'roles',
-              'owner_user': 'users',
-              'created_by_user': 'users',
-              'parent_role': 'roles'
-            }
-            
-            if (tableMap[baseName]) {
-              allForeignKeys.push({
-                column_name: col.column_name,
-                foreign_table_name: `${schema}.${tableMap[baseName]}`,
-                foreign_column_name: 'id'
-              })
-            }
+          // Check for error message
+          if (data.error && recData.length === 0) {
+            throw new Error(data.error)
           }
+        } else {
+          const errData = await response.json()
+          throw new Error(errData.error || 'Failed to fetch business records')
         }
-      })
+      } else {
+        // First, get column names to display as headers
+        const { data: colDataRpc, error: colError } = await supabase
+          .schema('system')
+          .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
 
-      setForeignKeys(allForeignKeys)
+        if (colError) {
+          throw new Error(colError.message)
+        }
 
-      // Then fetch all records
-      const { data, error: recError } = await supabase
-        .schema(schema)
-        .from(tableName)
-        .select('*')
-        .limit(1000) // reasonable limit for UI
+        colData = colData || []
 
-      if (recError) {
-        throw new Error(recError.message)
+        // Then fetch all records
+        const { data, error: recError } = await supabase
+          .schema(schema)
+          .from(tableName)
+          .select('*')
+          .limit(1000) // reasonable limit for UI
+
+        if (recError) {
+          throw new Error(recError.message)
+        }
+
+        recData = data || []
       }
 
-      setRecords(data || [])
+      // Filter out display_name column for entity and entity_junction tables (using name instead)
+      const columnNames = colData
+        ?.map((c: any) => c.column_name)
+        .filter((col: string) => !(
+          (schema === 'business' && (tableName === 'entity' || tableName === 'entity_junction') && col === 'display_name')
+        )) || []
+      setColumns(columnNames)
+      setColumnInfo(colData)
+
+      // Fetch foreign key information from API
+      try {
+        const fkResponse = await fetch(`/api/schema/foreign-keys?schema=${schema}&table=${tableName}`)
+        if (fkResponse.ok) {
+          const fkData = await fkResponse.json()
+          const fkList = fkData.foreignKeys || []
+          // Format foreign keys for the component
+          const formattedFKs = fkList.map((fk: any) => ({
+            column_name: fk.column_name,
+            foreign_table_name: `${fk.foreign_schema_name}.${fk.foreign_table_name}`,
+            foreign_column_name: fk.foreign_column_name
+          }))
+          setForeignKeys(formattedFKs)
+        }
+      } catch (fkErr) {
+        console.error('Failed to fetch foreign keys:', fkErr)
+        setForeignKeys([])
+      }
+
+      setRecords(recData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -169,7 +183,6 @@ export default function TableRecordsPage() {
     // Check if this column is a foreign key UUID - handle ALL foreign keys automatically
     const foreignKey = foreignKeys.find(fk => fk.column_name === columnName)
     if (column?.data_type === 'uuid' && foreignKey) {
-      console.log('Rendering foreign key:', { columnName, foreignKey, value })
       return (
         <SmartForeignKeyReference
           value={value}
