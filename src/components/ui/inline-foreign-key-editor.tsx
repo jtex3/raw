@@ -96,32 +96,15 @@ export default function InlineForeignKeyEditor({
     if (value && tableName) {
       const fetchDisplayValue = async () => {
         try {
-          // For business schema, use the special API endpoint
-          if (referenceSchema === 'business') {
-            const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
-            if (response.ok) {
-              const data = await response.json()
-              const records = data.records || []
-              const record = records.find((r: any) => r.id === value)
-              setCurrentDisplayValue(record?.[displayField] || value)
-            } else {
-              setCurrentDisplayValue(value)
-            }
+          // Use unified API endpoint for all schemas
+          const response = await fetch(`/api/records/${referenceSchema}/${tableName}?limit=1000`)
+          if (response.ok) {
+            const data = await response.json()
+            const records = data.records || []
+            const record = records.find((r: any) => r.id === value)
+            setCurrentDisplayValue(record?.[displayField] || value)
           } else {
-            const { data, error } = await supabase
-              .schema(referenceSchema)
-              .from(tableName)
-              .select(displayField)
-              .eq('id', value)
-              .single()
-
-            if (error) {
-              console.error('Error fetching display value:', error)
-              setCurrentDisplayValue(value)
-            } else {
-              const row = data as unknown as Record<string, unknown> | null
-              setCurrentDisplayValue(String(row?.[displayField] ?? value))
-            }
+            setCurrentDisplayValue(value)
           }
         } catch (error) {
           console.error('Error fetching display value:', error)
@@ -142,34 +125,18 @@ export default function InlineForeignKeyEditor({
 
     setLoading(true)
     try {
-      // For business schema, use the special API endpoint
-      if (referenceSchema === 'business') {
-        const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
-        if (response.ok) {
-          const data = await response.json()
-          const records = data.records || []
-          // Filter by display field containing the query
-          const filtered = records.filter((r: any) =>
-            r[displayField]?.toLowerCase().includes(query.toLowerCase())
-          )
-          setSearchResults(filtered.slice(0, 10))
-        } else {
-          setSearchResults([])
-        }
+      // Use unified API endpoint for all schemas
+      const response = await fetch(`/api/records/${referenceSchema}/${tableName}?limit=1000`)
+      if (response.ok) {
+        const data = await response.json()
+        const records = data.records || []
+        // Filter by display field containing the query
+        const filtered = records.filter((r: any) =>
+          r[displayField]?.toLowerCase().includes(query.toLowerCase())
+        )
+        setSearchResults(filtered.slice(0, 10))
       } else {
-        const { data, error } = await supabase
-          .schema(referenceSchema)
-          .from(tableName)
-          .select(`id, ${displayField}`)
-          .ilike(displayField, `%${query}%`)
-          .limit(10)
-
-        if (error) {
-          console.error('Error searching:', error)
-          setSearchResults([])
-        } else {
-          setSearchResults(data || [])
-        }
+        setSearchResults([])
       }
     } catch (error) {
       console.error('Error searching:', error)

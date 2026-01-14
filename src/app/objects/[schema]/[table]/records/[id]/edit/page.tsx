@@ -88,30 +88,15 @@ export default function EditRecordPage() {
     try {
       setLoading(true)
 
-      let colData: ColumnInfo[] = []
-
-      // For business schema, use the special API endpoint
-      if (schema === 'business') {
-        const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
-        if (response.ok) {
-          const data = await response.json()
-          colData = data.columns || []
-        } else {
-          const errData = await response.json()
-          throw new Error(errData.error || 'Failed to fetch business columns')
-        }
-      } else {
-        // Get column information only
-        const { data: colDataRpc, error: colError } = await supabase
-          .schema('system')
-          .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
-
-        if (colError) {
-          throw new Error(colError.message)
-        }
-
-        colData = colDataRpc || []
+      // Use unified API endpoint for all schemas
+      const response = await fetch(`/api/records/${schema}/${tableName}?limit=1000`)
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || `Failed to fetch ${schema} columns`)
       }
+
+      const data = await response.json()
+      let colData = data.columns || []
 
       // Filter out display_name column for entity and entity_junction tables
       if (schema === 'business' && (tableName === 'entity' || tableName === 'entity_junction')) {
@@ -133,72 +118,35 @@ export default function EditRecordPage() {
     try {
       setLoading(true)
 
-      let colData: ColumnInfo[] = []
-      let recData: any = {}
+      // Use unified API endpoint for all schemas
+      const response = await fetch(`/api/records/${schema}/${tableName}?limit=1000`)
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || `Failed to fetch ${schema} record`)
+      }
 
-      // For business schema, use the special API endpoint
-      if (schema === 'business') {
-        const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
-        if (response.ok) {
-          const data = await response.json()
-          colData = data.columns || []
+      const data = await response.json()
+      const colData = data.columns || []
+      const records = data.records || []
 
-          // Get the specific record from the records
-          const records = data.records || []
-          recData = records.find((r: any) => r.id === recordId) || {}
+      // Get the specific record from the records
+      const recData = records.find((r: any) => r.id === recordId) || {}
 
-          if (Object.keys(recData).length === 0) {
-            throw new Error('Record not found')
-          }
-        } else {
-          const errData = await response.json()
-          throw new Error(errData.error || 'Failed to fetch business record')
-        }
-      } else {
-        // Get column information
-        const { data: colDataRpc, error: colError } = await supabase
-          .schema('system')
-          .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
-
-        if (colError) {
-          throw new Error(colError.message)
-        }
-
-        colData = colDataRpc || []
-
-        // Find the primary key column (usually UUID)
-        const pkColumn = colData?.find((c: ColumnInfo) => c.data_type === 'uuid') || colData?.[0]
-
-        if (!pkColumn) {
-          throw new Error('Could not determine primary key column')
-        }
-
-        // Fetch the specific record
-        const supabaseAny = supabase as any
-        const { data, error: recError } = await supabaseAny
-          .schema(schema)
-          .from(tableName)
-          .select('*')
-          .eq(pkColumn.column_name, recordId)
-          .single()
-
-        if (recError) {
-          throw new Error(recError.message)
-        }
-
-        recData = data || {}
+      if (Object.keys(recData).length === 0) {
+        throw new Error('Record not found')
       }
 
       // Filter out display_name column for entity and entity_junction tables
-      if (schema === 'business' && (tableName === 'entity' || tableName === 'entity_junction')) {
-        colData = colData.filter(c => c.column_name !== 'display_name')
-      }
+      const filteredColData = schema === 'business' && (tableName === 'entity' || tableName === 'entity_junction')
+        ? colData.filter((c: ColumnInfo) => c.column_name !== 'display_name')
+        : colData
 
-      setColumns(colData)
-      setRecord(recData)
+      setColumns(filteredColData)
+      setColumnInfo(filteredColData)
       setFormData(recData)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      console.error('Error fetching record:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch record')
     } finally {
       setLoading(false)
     }

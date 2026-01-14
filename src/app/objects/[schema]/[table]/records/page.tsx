@@ -1,9 +1,11 @@
 /**
   * @fileoverview Table Records Listing Page
   *
-  * Displays up to 1000 records for a selected table in the Supabase `system` schema.
+  * Displays up to 1000 records for a selected table in any schema (system, business, recycle, etc.).
+  * Uses unified API endpoint /api/records/[schema]/[table] for server-side data fetching.
   * Features:
-  * - Dynamic column discovery via `get_schema_system_tables_columns`
+  * - Dynamic column discovery via API
+  * - Pre-fetches all foreign key reference data to avoid flickering
   * - Automatic rendering of booleans and foreign-key UUID references
   * - Links to edit individual records
   * - Shortcut to create a new record
@@ -13,11 +15,10 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Loader2, ArrowLeft, Rows, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { Checkbox } from '@/components/ui/checkbox'
-import { SmartForeignKeyReference } from '@/components/ui/smart-foreign-key-reference'
+import { InlineFkDisplay } from '@/components/ui/inline-fk-display'
 import {
   Table as ShadcnTable,
   TableBody,
@@ -35,10 +36,10 @@ export default function TableRecordsPage() {
   const [columns, setColumns] = useState<string[]>([])
   const [columnInfo, setColumnInfo] = useState<any[]>([])
   const [foreignKeys, setForeignKeys] = useState<any[]>([])
+  const [referenceData, setReferenceData] = useState<Map<string, Map<string, any>>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [canCreate, setCanCreate] = useState(false)
-  const supabase = createClient()
 
   useEffect(() => {
     if (tableName) {
@@ -68,52 +69,26 @@ export default function TableRecordsPage() {
     try {
       setLoading(true)
 
-      // For business schema, use the special API endpoint
+      // Use unified API endpoint for all schemas
       let colData: any[] = []
       let recData: any[] = []
 
-      if (schema === 'business') {
-        const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
-        if (response.ok) {
-          const data = await response.json()
-          colData = data.columns || []
-          recData = data.records || []
+      const response = await fetch(`/api/records/${schema}/${tableName}?limit=1000`)
+      if (response.ok) {
+        const data = await response.json()
+        colData = data.columns || []
+        recData = data.records || []
 
-          // Check for error message
-          if (data.error && recData.length === 0) {
-            throw new Error(data.error)
-          }
-        } else {
-          const errData = await response.json()
-          throw new Error(errData.error || 'Failed to fetch business records')
+        // Check for error message
+        if (data.error && recData.length === 0) {
+          throw new Error(data.error)
         }
       } else {
-        // First, get column names to display as headers
-        const { data: colDataRpc, error: colError } = await supabase
-          .schema('system')
-          .rpc('get_schema_object_columns', { target_schema: schema, target_table: tableName })
-
-        if (colError) {
-          throw new Error(colError.message)
-        }
-
-        colData = colData || []
-
-        // Then fetch all records
-        const { data, error: recError } = await supabase
-          .schema(schema)
-          .from(tableName)
-          .select('*')
-          .limit(1000) // reasonable limit for UI
-
-        if (recError) {
-          throw new Error(recError.message)
-        }
-
-        recData = data || []
+        const errData = await response.json()
+        throw new Error(errData.error || `Failed to fetch ${schema} records`)
       }
 
-      // Filter out display_name column for entity and entity_junction tables (using name instead)
+      // Filter out display_name column for entity and entity_junction tables
       const columnNames = colData
         ?.map((c: any) => c.column_name)
         .filter((col: string) => !(
@@ -123,11 +98,12 @@ export default function TableRecordsPage() {
       setColumnInfo(colData)
 
       // Fetch foreign key information from API
+      let fkList: any[] = []
       try {
         const fkResponse = await fetch(`/api/schema/foreign-keys?schema=${schema}&table=${tableName}`)
         if (fkResponse.ok) {
           const fkData = await fkResponse.json()
-          const fkList = fkData.foreignKeys || []
+          fkList = fkData.foreignKeys || []
           // Format foreign keys for the component
           const formattedFKs = fkList.map((fk: any) => ({
             column_name: fk.column_name,
@@ -141,6 +117,29 @@ export default function TableRecordsPage() {
         setForeignKeys([])
       }
 
+      // Pre-fetch all reference data for foreign keys to avoid flickering
+      const refDataMap = new Map<string, Map<string, any>>()
+      const uniqueRefTables = [...new Set(fkList.map((fk: any) => `${fk.foreign_schema_name}.${fk.foreign_table_name}`))]
+
+      await Promise.all(
+        uniqueRefTables.map(async (refTable) => {
+          try {
+            const [refSchema, refTableName] = refTable.split('.')
+            const refResponse = await fetch(`/api/records/${refSchema}/${refTableName}?limit=1000`)
+            if (refResponse.ok) {
+              const refData = await refResponse.json()
+              const recordsMap = new Map<string, any>(
+                (refData.records || []).map((r: any) => [r.id, r])
+              )
+              refDataMap.set(refTable, recordsMap)
+            }
+          } catch (err) {
+            console.error(`Failed to fetch reference data for ${refTable}:`, err)
+          }
+        })
+      )
+
+      setReferenceData(refDataMap)
       setRecords(recData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -179,19 +178,26 @@ export default function TableRecordsPage() {
         />
       )
     }
-    
-    // Check if this column is a foreign key UUID - handle ALL foreign keys automatically
+
+    // Check if this column is a foreign key UUID - use pre-fetched data
     const foreignKey = foreignKeys.find(fk => fk.column_name === columnName)
     if (column?.data_type === 'uuid' && foreignKey) {
+      const refTable = foreignKey.foreign_table_name
+      const refMap = referenceData.get(refTable)
+      const refRecord = refMap?.get(value)
+
+      // Determine display field (prefer 'name', fallback to 'profile_name', 'org_name', or first column)
+      const displayField = refRecord?.name || refRecord?.profile_name || refRecord?.org_name || refRecord?.email || value
+
       return (
-        <SmartForeignKeyReference
+        <InlineFkDisplay
           value={value}
-          referenceTable={foreignKey.foreign_table_name}
-          mode="view"
+          displayValue={displayField}
+          referenceTable={refTable}
         />
       )
     }
-    
+
     if (typeof value === 'object' && value !== null) {
       return (
         <pre className="text-gray-600 font-mono text-xs">
@@ -199,7 +205,7 @@ export default function TableRecordsPage() {
         </pre>
       )
     }
-    
+
     return String(value)
   }
 
@@ -208,7 +214,7 @@ export default function TableRecordsPage() {
     // Try to find UUID columns first (common primary keys)
     const uuidCol = cols.find(c => c.data_type === 'uuid' && row[c.column_name])
     if (uuidCol) return row[uuidCol.column_name]
-    
+
     // Fallback to first column that has a value
     const firstCol = cols.find(c => row[c.column_name] !== null && row[c.column_name] !== undefined)
     return firstCol ? row[firstCol.column_name] : row[Object.keys(row)[0]]

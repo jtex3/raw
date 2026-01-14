@@ -47,7 +47,7 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       db: {
-        schema: 'public, system, recycle'
+        schema: 'system'
       }
     }
   )

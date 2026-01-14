@@ -1,30 +1,23 @@
 /**
  * @fileoverview Foreign Key Reference Display Component
- * 
+ *
  * This component provides a reusable UI element for displaying and selecting
  * foreign key references in the Raw System. It supports:
  * - Display mode for showing resolved foreign key values
  * - Edit mode with search functionality for selecting references
- * - Automatic data fetching and caching
+ * - Automatic data fetching via unified API endpoint
  * - Error handling and loading states
- * - Integration with Supabase for real-time data
- * 
+ *
  * Used throughout the application for consistent foreign key UI patterns
  * in forms, tables, and detail views.
- * 
- * @author Raw System Team
- * @version 1.0.0
- * @since 2026-01-04
  */
 
 "use client"
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Badge } from './badge'
 import { Button } from './button'
-import { Search, ExternalLink } from 'lucide-react'
-import { ForeignKeyRecord } from '@/types/foreign-key'
+import { Search } from 'lucide-react'
 import Link from 'next/link'
 
 interface ForeignKeyReferenceProps {
@@ -54,10 +47,13 @@ export function ForeignKeyReference({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showSearch, setShowSearch] = useState(false)
-  const [searchResults, setSearchResults] = useState<ForeignKeyRecord[]>([])
+  const [searchResults, setSearchResults] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  
-  const supabase = createClient()
+
+  // Parse reference table to extract schema and table name
+  const [schema, tableName] = referenceTable.includes('.')
+    ? referenceTable.split('.')
+    : ['system', referenceTable]
 
   // Fetch display value when UUID changes
   useEffect(() => {
@@ -70,37 +66,16 @@ export function ForeignKeyReference({
       setIsLoading(true)
       setError(null)
 
-      // Parse reference table to extract schema and table name
-      const [schema, tableName] = referenceTable.includes('.')
-        ? referenceTable.split('.')
-        : ['system', referenceTable]
-
       try {
-        // For business schema, use the special API endpoint
-        if (schema === 'business') {
-          const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
-          if (response.ok) {
-            const data = await response.json()
-            const records = data.records || []
-            const record = records.find((r: any) => r.id === value)
-            setDisplayValue(record?.[displayField] || '')
-          } else {
-            throw new Error('Failed to fetch business records')
-          }
+        // Use unified API endpoint for all schemas
+        const response = await fetch(`/api/records/${schema}/${tableName}?limit=1000`)
+        if (response.ok) {
+          const data = await response.json()
+          const records = data.records || []
+          const record = records.find((r: any) => r.id === value)
+          setDisplayValue(record?.[displayField] || '')
         } else {
-          const { data, error } = await supabase
-            .schema(schema)
-            .from(tableName)
-            .select(displayField)
-            .eq(referenceField, value)
-            .single()
-
-          if (error) {
-            console.error('Supabase query error:', error)
-            throw new Error(`Supabase error: ${error.message}`)
-          }
-
-          setDisplayValue((data as any)?.[displayField] || '')
+          throw new Error(`Failed to fetch ${schema} records`)
         }
       } catch (err) {
         console.error('Error fetching reference:', err)
@@ -112,66 +87,47 @@ export function ForeignKeyReference({
     }
 
     fetchDisplayValue()
-  }, [value, referenceTable, referenceField, displayField, supabase])
+  }, [value, schema, tableName, displayField])
 
   // Search for records
-  const searchRecords = async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([])
-      return
-    }
+  useEffect(() => {
+    const searchRecords = async () => {
+      if (!searchQuery.trim()) {
+        setSearchResults([])
+        return
+      }
 
-    setIsLoading(true)
-    setError(null)
+      setIsLoading(true)
+      setError(null)
 
-    // Parse reference table to extract schema and table name
-    const [schema, tableName] = referenceTable.includes('.')
-      ? referenceTable.split('.')
-      : ['system', referenceTable]
-
-    try {
-      // For business schema, use the special API endpoint
-      if (schema === 'business') {
-        const response = await fetch(`/api/business/records?table=${tableName}&limit=1000`)
+      try {
+        // Use unified API endpoint for all schemas
+        const response = await fetch(`/api/records/${schema}/${tableName}?limit=1000`)
         if (response.ok) {
           const data = await response.json()
           const records = data.records || []
           // Filter by display field containing the query
           const filtered = records.filter((r: any) =>
-            r[displayField]?.toLowerCase().includes(query.toLowerCase())
+            r[displayField]?.toLowerCase().includes(searchQuery.toLowerCase())
           )
-          setSearchResults(filtered.slice(0, 10) as unknown as ForeignKeyRecord[])
+          setSearchResults(filtered.slice(0, 10))
         } else {
-          throw new Error('Failed to search business records')
+          throw new Error(`Failed to search ${schema} records`)
         }
-      } else {
-        const { data, error } = await supabase
-          .schema(schema)
-          .from(tableName)
-          .select(`${referenceField}, ${displayField}`)
-          .ilike(displayField, `%${query}%`)
-          .limit(10)
-
-        if (error) throw error
-
-        setSearchResults((data as unknown as ForeignKeyRecord[]) || [])
+      } catch (err) {
+        console.error('Error searching:', err)
+        setError('Failed to search')
+      } finally {
+        setIsLoading(false)
       }
-    } catch (err) {
-      console.error('Error searching:', err)
-      setError('Failed to search')
-    } finally {
-      setIsLoading(false)
     }
-  }
 
-  // Handle search input
-  useEffect(() => {
     const timeoutId = setTimeout(() => {
-      searchRecords(searchQuery)
+      searchRecords()
     }, 300)
 
     return () => clearTimeout(timeoutId)
-  }, [searchQuery])
+  }, [searchQuery, schema, tableName, displayField])
 
   // Handle record selection
   const handleSelectRecord = (record: { id: string; [key: string]: any }) => {
@@ -189,12 +145,8 @@ export function ForeignKeyReference({
     onValueChange?.(null)
   }
 
+  // View mode
   if (mode === 'view') {
-    // Parse reference table to extract schema and table name
-    const [schema, tableName] = referenceTable.includes('.')
-      ? referenceTable.split('.')
-      : ['system', referenceTable]
-
     return (
       <div className={`flex items-center gap-2 ${className}`}>
         {isLoading ? (
@@ -222,6 +174,7 @@ export function ForeignKeyReference({
     )
   }
 
+  // Edit mode
   return (
     <div className={`relative ${className}`}>
       {/* Display current value */}
@@ -237,7 +190,7 @@ export function ForeignKeyReference({
             </div>
           )}
         </div>
-        
+
         <div className="flex gap-1">
           <Button
             type="button"
@@ -248,7 +201,7 @@ export function ForeignKeyReference({
           >
             <Search className="h-4 w-4" />
           </Button>
-          
+
           {value && (
             <Button
               type="button"
@@ -276,7 +229,7 @@ export function ForeignKeyReference({
               autoFocus
             />
           </div>
-          
+
           <div className="max-h-48 overflow-y-auto">
             {isLoading ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
