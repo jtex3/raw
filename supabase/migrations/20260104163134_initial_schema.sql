@@ -13,6 +13,9 @@
 -- Ensure required extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Create system schema
+CREATE SCHEMA system;
+
 -- =====================================================
 -- CORE TABLES
 -- =====================================================
@@ -256,23 +259,24 @@ CREATE INDEX idx_system_list_views_public ON system.list_views(is_public);
 -- JWT METADATA SETUP - ADD org_id TO JWT
 -- =====================================================
 
--- Function to set org_id and profile_id in JWT on user creation
+-- Function to set org_id in JWT on user creation
+-- Note: profile_id is NOT stored in JWT and is checked dynamically instead
 CREATE OR REPLACE FUNCTION system.handle_user_org_metadata()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Update auth.users to include org_id and profile_id in app_metadata
+  -- Update auth.users to include org_id in app_metadata
+  -- profile_id is intentionally NOT stored here - it's checked dynamically
   UPDATE auth.users
-  SET raw_app_meta_data = 
-      COALESCE(raw_app_meta_data, '{}'::jsonb) || 
+  SET raw_app_meta_data =
+      COALESCE(raw_app_meta_data, '{}'::jsonb) ||
       jsonb_build_object(
-        'org_id', NEW.org_id::text,
-        'profile_id', NEW.profile_id::text
+        'org_id', NEW.org_id::text
       )
   WHERE id = NEW.id;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql 
-   SECURITY DEFINER 
+$$ LANGUAGE plpgsql
+   SECURITY DEFINER
    SET search_path = system, pg_temp;
 
 -- Trigger on INSERT
@@ -324,23 +328,26 @@ $$ LANGUAGE plpgsql
    SET search_path = system, pg_temp;
 
 -- Create a function that bypasses RLS when checking if user profile is System Administrator
+-- Note: profile_id is checked dynamically from system.users, not from JWT
 CREATE OR REPLACE FUNCTION system.current_user_is_system_admin()
 RETURNS BOOLEAN AS $$
 DECLARE
   is_admin BOOLEAN;
 BEGIN
   -- This SELECT bypasses RLS because of SECURITY DEFINER
+  -- profile_id is fetched dynamically from system.users table
   SELECT EXISTS (
     SELECT 1
-    FROM system.profiles
-    WHERE id = (auth.jwt() -> 'app_metadata' ->> 'profile_id')::uuid
-    AND profile_name = 'System Administrator'
+    FROM system.profiles p
+    INNER JOIN system.users u ON u.profile_id = p.id
+    WHERE u.id = auth.uid()
+    AND p.profile_name = 'System Administrator'
   ) INTO is_admin;
-  
+
   RETURN COALESCE(is_admin, false);
 END;
-$$ LANGUAGE plpgsql 
-   SECURITY DEFINER 
+$$ LANGUAGE plpgsql
+   SECURITY DEFINER
    SET search_path = system, pg_temp;
 
 -- =====================================================
@@ -712,16 +719,16 @@ AS $$
 DECLARE
   user_profile_id UUID;
 BEGIN
-  -- Get user's profile from JWT
-  user_profile_id := (auth.jwt() -> 'app_metadata' ->> 'profile_id')::UUID;
+  -- Get user's profile dynamically from system.users table (not JWT)
+  SELECT profile_id INTO user_profile_id FROM system.users WHERE id = auth.uid();
 
   IF user_profile_id IS NULL THEN
     RETURN;
   END IF;
 
   -- Validate schema parameter
-  IF p_schema NOT IN ('system', 'public') THEN
-    RAISE EXCEPTION 'Invalid schema. Must be "system" or "public".';
+  IF p_schema NOT IN ('system') THEN
+    RAISE EXCEPTION 'Invalid schema. Must be "system".';
   END IF;
 
   -- Return all objects the user's profile has permissions for
@@ -1098,72 +1105,25 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON system.list_views TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA system TO authenticated;
 
 -- =====================================================
--- GRANT STATEMENTS - FUNCTION PERMISSIONS
--- =====================================================
-
--- Grant EXECUTE on all functions to authenticated users
-GRANT EXECUTE ON FUNCTION system.handle_user_org_metadata() TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_user_org() TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_user_role() TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_user_profile() TO authenticated;
-GRANT EXECUTE ON FUNCTION system.current_user_is_system_admin() TO authenticated;
-GRANT EXECUTE ON FUNCTION system.can_access_via_role(UUID, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.is_role_above(UUID, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.is_subordinate_of(UUID, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.has_object_permission(UUID, TEXT, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.has_field_permission(UUID, TEXT, TEXT, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_visible_fields(UUID, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_owd_access(UUID, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.has_sharing_rule_access(UUID, UUID, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.has_manual_share(UUID, UUID, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.update_updated_at() TO authenticated;
-GRANT EXECUTE ON FUNCTION system.set_audit_fields_on_insert() TO authenticated;
-GRANT EXECUTE ON FUNCTION system.set_audit_fields_on_update() TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_schema_object_columns(TEXT, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_object_foreign_keys(TEXT, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_accessible_objects(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_schema_objects(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION system.get_schema_table_data(TEXT, TEXT, INTEGER) TO authenticated;
-
--- =====================================================
--- DEFAULT PRIVILEGES FOR FUTURE OBJECTS
--- =====================================================
-
--- Set default privileges for future tables
-ALTER DEFAULT PRIVILEGES IN SCHEMA system 
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
-
--- Set default privileges for future sequences
-ALTER DEFAULT PRIVILEGES IN SCHEMA system 
-GRANT USAGE, SELECT ON SEQUENCES TO authenticated;
-
--- Set default privileges for future functions
-ALTER DEFAULT PRIVILEGES IN SCHEMA public 
-GRANT EXECUTE ON FUNCTIONS TO authenticated;
-
--- =====================================================
 -- TABLE COMMENTS
 -- =====================================================
 
-COMMENT ON TABLE system.organizations IS 'Multi-tenant organizations (orgs). Each org is completely isolated.';
-COMMENT ON TABLE system.users IS 'Users belonging to organizations with profile and role assignments.';
-COMMENT ON TABLE system.roles IS 'Role hierarchy within each org. Self-referencing for parent-child relationships.';
-COMMENT ON TABLE system.profiles IS 'Profiles control CRUD and field-level permissions.';
-COMMENT ON TABLE system.profile_object_permissions IS 'Object-level CRUD permissions per profile.';
-COMMENT ON TABLE system.profile_field_permissions IS 'Field-level read/edit permissions per profile (deny by default).';
-COMMENT ON TABLE system.org_wide_defaults IS 'Organization-wide default access levels for objects.';
-COMMENT ON TABLE system.sharing_rules IS 'Criteria-based and ownership-based sharing rules.';
-COMMENT ON TABLE system.manual_shares IS 'Ad-hoc record sharing between users.';
-COMMENT ON TABLE system.list_views IS 'Custom list views with filters, columns, and sorting configuration.';
+COMMENT ON TABLE system.organizations               IS 'Multi-tenant organizations (orgs). Each org is completely isolated.';
+COMMENT ON TABLE system.users                       IS 'Users belonging to organizations with profile and role assignments.';
+COMMENT ON TABLE system.roles                       IS 'Role hierarchy within each org. Self-referencing for parent-child relationships.';
+COMMENT ON TABLE system.profiles                    IS 'Profiles control CRUD and field-level permissions.';
+COMMENT ON TABLE system.profile_object_permissions  IS 'Object-level CRUD permissions per profile.';
+COMMENT ON TABLE system.profile_field_permissions   IS 'Field-level read/edit permissions per profile (deny by default).';
+COMMENT ON TABLE system.org_wide_defaults           IS 'Organization-wide default access levels for objects.';
+COMMENT ON TABLE system.sharing_rules               IS 'Criteria-based and ownership-based sharing rules.';
+COMMENT ON TABLE system.manual_shares               IS 'Ad-hoc record sharing between users.';
+COMMENT ON TABLE system.list_views                  IS 'Custom list views with filters, columns, and sorting configuration.';
 
 -- =====================================================
 -- GENERIC SCHEMA DISCOVERY FUNCTIONS
 -- =====================================================
 -- These functions enable dynamic schema discovery for any schema
 -- Works around PostgREST schema limitations
-
--- Drop function if exists
-DROP FUNCTION IF EXISTS system.get_schema_objects(TEXT) CASCADE;
 
 CREATE OR REPLACE FUNCTION system.get_schema_objects(p_schema TEXT DEFAULT 'system')
 RETURNS TABLE (
@@ -1185,11 +1145,8 @@ AS $$
 $$;
 
 -- Grant execute to authenticated users
-GRANT EXECUTE ON FUNCTION system.get_schema_objects(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION system.get_schema_objects(TEXT) TO service_role;
-
--- Generic function to query any schema's table data
-DROP FUNCTION IF EXISTS system.get_schema_table_data(TEXT, TEXT, INTEGER) CASCADE;
+GRANT EXECUTE ON FUNCTION system.get_schema_objects(TEXT) TO authenticated;
 
 CREATE OR REPLACE FUNCTION system.get_schema_table_data(
   p_schema TEXT,
@@ -1219,6 +1176,33 @@ BEGIN
 END;
 $$;
 
--- Grant execute to authenticated users
-GRANT EXECUTE ON FUNCTION system.get_schema_table_data(TEXT, TEXT, INTEGER) TO authenticated;
+
+-- =====================================================
+-- GRANT STATEMENTS - FUNCTION PERMISSIONS
+-- =====================================================
+
+-- Grant EXECUTE on all functions to authenticated users
+GRANT EXECUTE ON FUNCTION system.handle_user_org_metadata() TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_user_org() TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_user_role() TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_user_profile() TO authenticated;
+GRANT EXECUTE ON FUNCTION system.current_user_is_system_admin() TO authenticated;
+GRANT EXECUTE ON FUNCTION system.can_access_via_role(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.is_role_above(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.is_subordinate_of(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.has_object_permission(UUID, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.has_field_permission(UUID, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_visible_fields(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_owd_access(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.has_sharing_rule_access(UUID, UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.has_manual_share(UUID, UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.update_updated_at() TO authenticated;
+GRANT EXECUTE ON FUNCTION system.set_audit_fields_on_insert() TO authenticated;
+GRANT EXECUTE ON FUNCTION system.set_audit_fields_on_update() TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_schema_object_columns(TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_object_foreign_keys(TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_accessible_objects(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION system.get_schema_objects(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION system.get_schema_table_data(TEXT, TEXT, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION system.get_schema_table_data(TEXT, TEXT, INTEGER) TO authenticated;
+

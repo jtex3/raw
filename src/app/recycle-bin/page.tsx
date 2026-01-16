@@ -16,7 +16,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 interface DeletedRecord {
-  deletion_id: string
+  batch_id: string
   schema_name: string
   table_name: string
   record_id: string
@@ -24,6 +24,7 @@ interface DeletedRecord {
   deleted_at: string
   deleted_by_email: string
   record_count: number
+  restored_at: string | null
 }
 
 type ModalType = 'restore' | 'purge' | null
@@ -52,9 +53,9 @@ export default function RecycleBinPage() {
 
       if (error) throw error
 
-      // Group by deletion_id to get unique deletions
+      // Group by batch_id to get unique deletions
       const uniqueDeletions = data?.reduce((acc: any[], record: any) => {
-        const existing = acc.find(d => d.deletion_id === record.deletion_id)
+        const existing = acc.find(d => d.batch_id === record.batch_id)
         if (!existing) {
           acc.push(record)
         }
@@ -76,7 +77,7 @@ export default function RecycleBinPage() {
 
       const { data, error } = await supabase
         .schema('recycle')
-        .rpc('restore_deletion', { p_deletion_id: deletionId })
+        .rpc('restore_deletion', { p_batch_id: deletionId })
 
       if (error) throw error
 
@@ -101,7 +102,7 @@ export default function RecycleBinPage() {
 
       const { data, error } = await supabase
         .schema('recycle')
-        .rpc('purge_deletion', { p_deletion_id: deletionId })
+        .rpc('purge_deletion', { p_batch_id: deletionId })
 
       if (error) throw error
 
@@ -252,7 +253,7 @@ export default function RecycleBinPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {deletions.map((deletion) => (
-                <tr key={deletion.deletion_id} className="hover:bg-gray-50">
+                <tr key={deletion.batch_id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
                       {deletion.schema_name}.{deletion.table_name}
@@ -340,7 +341,7 @@ export default function RecycleBinPage() {
                 Cancel
               </button>
               <button
-                onClick={() => handleRestore(selectedDeletion.deletion_id)}
+                onClick={() => handleRestore(selectedDeletion.batch_id)}
                 disabled={actionLoading}
                 className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 border border-teal-600 rounded transition-colors shadow-lg disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
               >
@@ -399,7 +400,7 @@ export default function RecycleBinPage() {
                 Cancel
               </button>
               <button
-                onClick={() => handlePurge(selectedDeletion.deletion_id)}
+                onClick={() => handlePurge(selectedDeletion.batch_id)}
                 disabled={actionLoading}
                 className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 border border-red-600 rounded transition-colors shadow-lg disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
               >

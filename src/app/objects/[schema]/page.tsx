@@ -13,7 +13,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { Loader2, Database, Table, Eye } from 'lucide-react'
+import { Loader2, Table, Eye, Database } from 'lucide-react'
 import Link from 'next/link'
 
 interface SchemaObject {
@@ -66,11 +66,6 @@ export default function SchemaObjectsPage() {
       setLoading(false)
     }
   }
-
-  const schemaLabel = schema === 'system' ? 'System Objects' : 'Business Objects'
-  const schemaDescription = schema === 'system'
-    ? 'All tables and objects in your Supabase system schema'
-    : 'All tables and views in your business schema'
 
   if (loading) {
     return (
@@ -147,6 +142,8 @@ export default function SchemaObjectsPage() {
     )
   }
 
+  const schemaLabel = schema.charAt(0).toUpperCase() + schema.slice(1) + ' Objects'
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -154,9 +151,6 @@ export default function SchemaObjectsPage() {
           <Database className="mr-3 h-8 w-8 text-teal-600" />
           {schemaLabel}
         </h1>
-        <p className="text-gray-600 mt-2">
-          {schemaDescription}
-        </p>
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">

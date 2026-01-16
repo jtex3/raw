@@ -70,10 +70,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const schema = searchParams.get('schema') || 'system'
 
-    // Validate schema parameter
-    if (schema !== 'system' && schema !== 'business') {
+    // Validate schema parameter - only system schema is supported
+    if (schema !== 'system') {
       return NextResponse.json(
-        { error: 'Invalid schema. Must be "system" or "business".' },
+        { error: 'Invalid schema. Must be "system".' },
         { status: 400 }
       )
     }
@@ -81,92 +81,35 @@ export async function GET(request: NextRequest) {
     // Use authenticated client to respect user permissions
     const supabase = await createClient()
 
-    let objectsWithCounts: SchemaObject[] = []
+    // For system schema, use the permission-based approach
+    const { data: accessibleObjects, error: accessError } = await supabase
+      .schema('system')
+      .rpc('get_accessible_objects', { p_schema: schema })
 
-    if (schema === 'business') {
-      // Discover all tables and views in business schema
-      const { data: schemaObjects, error: objectsError } = await supabase
-        .schema('system')
-        .rpc('get_schema_objects', { p_schema: 'business' })
+    if (accessError) {
+      console.error('Error fetching accessible objects:', accessError)
+      return NextResponse.json(
+        { error: accessError.message },
+        { status: 500 }
+      )
+    }
 
-      if (objectsError) {
-        console.error('Error fetching business schema objects:', objectsError)
-        return NextResponse.json(
-          { error: objectsError.message },
-          { status: 500 }
-        )
-      }
+    // If no accessible objects (no permissions), return empty array
+    if (!accessibleObjects || accessibleObjects.length === 0) {
+      return NextResponse.json({ tables: [] })
+    }
 
-      if (Array.isArray(schemaObjects) && schemaObjects.length > 0) {
-        // Get record counts for each object
-        objectsWithCounts = await Promise.all(
-          schemaObjects.map(async (obj: any) => {
-            const recordCount = await getRecordCount(supabase, 'business', obj.table_name)
+    // Get actual record counts for each accessible object
+    const objectsWithCounts = await Promise.all(
+      (accessibleObjects as AccessibleObject[]).map(async (obj) => {
+        try {
+          const { count, error } = await supabase
+            .schema(schema)
+            .from(obj.object_name)
+            .select('*', { count: 'exact', head: true })
 
-            return {
-              table_name: obj.table_name,
-              table_type: obj.table_type,
-              record_count: recordCount,
-              can_create: obj.table_type === 'BASE TABLE',
-              can_read: true,
-              can_update: obj.table_type === 'BASE TABLE',
-              can_delete: obj.table_type === 'BASE TABLE'
-            }
-          })
-        )
-      }
-    } else {
-      // For system schema, use the existing permission-based approach
-      const { data: accessibleObjects, error: accessError } = await supabase
-        .schema('system')
-        .rpc('get_accessible_objects', { p_schema: schema })
-
-      if (accessError) {
-        console.error('Error fetching accessible objects:', accessError)
-        return NextResponse.json(
-          { error: accessError.message },
-          { status: 500 }
-        )
-      }
-
-      // If no accessible objects (no permissions), return empty array
-      if (!accessibleObjects || accessibleObjects.length === 0) {
-        return NextResponse.json({ tables: [] })
-      }
-
-      // Get actual record counts for each accessible object
-      objectsWithCounts = await Promise.all(
-        (accessibleObjects as AccessibleObject[]).map(async (obj) => {
-          try {
-            const { count, error } = await supabase
-              .schema(schema)
-              .from(obj.object_name)
-              .select('*', { count: 'exact', head: true })
-
-            if (error) {
-              console.error(`Error counting ${obj.object_name}:`, error)
-              return {
-                table_name: obj.object_name,
-                table_type: 'BASE TABLE',
-                record_count: 0,
-                can_create: obj.can_create,
-                can_read: obj.can_read,
-                can_update: obj.can_update,
-                can_delete: obj.can_delete
-              }
-            }
-
-            return {
-              table_name: obj.object_name,
-              table_type: 'BASE TABLE',
-              record_count: count ?? 0,
-              can_create: obj.can_create,
-              can_read: obj.can_read,
-              can_update: obj.can_update,
-              can_delete: obj.can_delete
-            }
-          } catch (err) {
-            console.error(`Failed to process object ${obj.object_name}:`, err)
+          if (error) {
+            console.error(`Error counting ${obj.object_name}:`, error)
             return {
               table_name: obj.object_name,
               table_type: 'BASE TABLE',
@@ -177,9 +120,30 @@ export async function GET(request: NextRequest) {
               can_delete: obj.can_delete
             }
           }
-        })
-      )
-    }
+
+          return {
+            table_name: obj.object_name,
+            table_type: 'BASE TABLE',
+            record_count: count ?? 0,
+            can_create: obj.can_create,
+            can_read: obj.can_read,
+            can_update: obj.can_update,
+            can_delete: obj.can_delete
+          }
+        } catch (err) {
+          console.error(`Failed to process object ${obj.object_name}:`, err)
+          return {
+            table_name: obj.object_name,
+            table_type: 'BASE TABLE',
+            record_count: 0,
+            can_create: obj.can_create,
+            can_read: obj.can_read,
+            can_update: obj.can_update,
+            can_delete: obj.can_delete
+          }
+        }
+      })
+    )
 
     return NextResponse.json({ tables: objectsWithCounts })
   } catch (error) {
