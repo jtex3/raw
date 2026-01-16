@@ -1,5 +1,5 @@
 -- ============================================
--- BUSINESS SEED DATA
+-- CRM SEED DATA
 -- ============================================
 -- This migration creates example records for testing:
 -- 1. A corporate client (Home Care Services Inc.)
@@ -10,7 +10,7 @@
 -- ============================================
 -- INSERT CORPORATE CLIENT
 -- ============================================
-INSERT INTO business.entity (
+INSERT INTO crm.entity (
     id,
     entity_type,
     legal_name,
@@ -43,7 +43,7 @@ INSERT INTO business.entity (
 -- ============================================
 -- INSERT INDIVIDUAL CLIENT
 -- ============================================
-INSERT INTO business.entity (
+INSERT INTO crm.entity (
     id,
     entity_type,
     first_name,
@@ -87,7 +87,7 @@ INSERT INTO business.entity (
 -- CREATE RELATIONSHIP VIA ENTITY_JUNCTION
 -- ============================================
 -- The corporate client is the referral source for the individual client
-INSERT INTO business.entity_junction (
+INSERT INTO crm.entity_junction (
     id,
     source_entity_id,
     target_entity_id,
